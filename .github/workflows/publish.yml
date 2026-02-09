@@ -53,8 +53,8 @@ jobs:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
           # --no-verify to not build
-          cargo publish --package microkit
-          cargo publish --package microkit-cli
+          cargo publish --allow-dirty --package microkit
+          cargo publish --allow-dirty --package microkit-cli
 
       - name: Git Tag
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
