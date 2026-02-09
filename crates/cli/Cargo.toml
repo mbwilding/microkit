@@ -1,0 +1,22 @@
+[package]
+name = "mk"
+version = "0.1.0"
+edition = "2024"
+publish = true
+
+[dependencies]
+# Internal
+microkit = { workspace = true }
+# Workspace External
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_yaml_ng = { workspace = true }
+# External
+clap = { version = "4.5", features = ["derive"] }
+ctrlc = "3.5"
+# Posix
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.31", features = ["signal"] }
+# Windows
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = ["Win32_System_Console"] }

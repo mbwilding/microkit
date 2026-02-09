@@ -1,0 +1,20 @@
+apiVersion: dapr.io/v1alpha1
+kind: Resiliency
+metadata:
+  name: defaultresiliency
+spec:
+  policies:
+    timeouts:
+    retries:
+      # DefaultPubsubComponentInboundTimeoutPolicy:
+      #   policy: constant
+      #   maxInterval: 2s
+      #   maxRetries: 10
+
+      DefaultPubsubComponentInboundRetryPolicy:
+        policy: exponential
+        maxInterval: 900s
+        maxRetries: 5
+  targets:
+    components:
+    apps:

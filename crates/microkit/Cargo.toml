@@ -1,0 +1,91 @@
+[package]
+name = "microkit"
+version = "0.1.0"
+edition = "2024"
+publish = true
+
+[dependencies]
+# Workspace External
+anyhow = { workspace = true }
+log = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml_ng = { workspace = true }
+tokio = { workspace = true }
+# External
+axum = { version = "0.8", features = ["macros"] }
+
+# Tracing
+tracing = { version = "0.1", optional = true }
+tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
+
+# Database
+sea-orm = { version = "2.0.0-rc.30", features = ["debug-print", "runtime-tokio-native-tls", "sqlx-postgres"], optional = true }
+sea-orm-migration = { version = "2.0.0-rc.30", features = ["runtime-tokio-native-tls", "sqlx-postgres"], optional = true }
+
+# Messaging
+dapr = { version = "0.17.0", optional = true }
+tonic = { version = "0.12.3", optional = true }
+
+# Documentation
+utoipa = { version = "5.4", features = ["axum_extras"], optional = true }
+utoipa-axum = { version = "0.2", optional = true }
+utoipa-rapidoc = { version = "6.0", features = ["axum"], optional = true }
+utoipa-redoc = { version = "6.0", features = ["axum"], optional = true }
+utoipa-scalar = { version = "0.3", features = ["axum"], optional = true }
+utoipa-swagger-ui = { version = "9.0", features = ["axum"], optional = true }
+
+# OpenTelemetry
+axum-otel = { version = "0.31", optional = true }
+axum-otel-metrics = { version = "0.12", optional = true }
+axum-tracing-opentelemetry = { version = "0.33", optional = true }
+opentelemetry = { version = "0.31", features = ["trace", "metrics"], optional = true }
+opentelemetry-appender-log = { version = "0.31", optional = true }
+opentelemetry-http = { version = "0.31", optional = true }
+opentelemetry-otlp = { version = "0.31", features = ["http-proto", "http-json", "logs", "reqwest-blocking-client", "reqwest-rustls"], optional = true }
+opentelemetry-semantic-conventions = { version = "0.31", optional = true }
+opentelemetry_sdk = { version = "0.31", features = ["rt-tokio", "metrics", "logs", "spec_unstable_metrics_views"], optional = true }
+tower-http = { version = "0.6", features = ["trace", "cors"], optional = true }
+tracing-opentelemetry = { version = "0.32", optional = true }
+
+# Authentication
+async-trait = { version = "0.1", optional = true }
+axum-extra = { version = "0.12", features = ["typed-header"], optional = true }
+jsonwebtoken = { version = "10.3", features = ["aws_lc_rs"], optional = true }
+reqwest = { version = "0.13", features = ["json"], optional = true }
+
+[features]
+default = ["tracing", "database", "health-checks", "swagger", "otel", "dapr", "auth"]
+# Tracing
+tracing = ["dep:tracing", "dep:tracing-subscriber"]
+# Database support
+database = ["dep:sea-orm", "dep:sea-orm-migration"]
+# Enables authentication with OIDC
+auth = ["dep:async-trait", "dep:axum-extra", "dep:jsonwebtoken", "dep:reqwest"]
+# Enables dapr
+dapr = ["dep:dapr", "dep:tonic"]
+# Enables the /status/ready and /status/live endpoints
+health-checks = []
+# Documentation: Swagger
+swagger = ["dep:utoipa", "dep:utoipa-axum", "dep:utoipa-swagger-ui"]
+# Documentation: Redoc
+redoc = ["dep:utoipa", "dep:utoipa-axum", "dep:utoipa-redoc"]
+# Documentation: Rapidoc
+rapidoc = ["dep:utoipa", "dep:utoipa-axum", "dep:utoipa-rapidoc"]
+# Documentation: Scalar
+scalar = ["dep:utoipa", "dep:utoipa-axum", "dep:utoipa-scalar"]
+# OpenTelemetry
+otel = [
+    "dep:tracing",
+    "dep:tower-http",
+    "dep:axum-otel",
+    "dep:axum-otel-metrics",
+    "dep:axum-tracing-opentelemetry",
+    "dep:opentelemetry",
+    "dep:opentelemetry-appender-log",
+    "dep:opentelemetry-http",
+    "dep:opentelemetry-otlp",
+    "dep:opentelemetry-semantic-conventions",
+    "dep:opentelemetry_sdk",
+    "dep:tracing-opentelemetry",
+]

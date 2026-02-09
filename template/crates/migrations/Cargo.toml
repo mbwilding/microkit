@@ -1,0 +1,14 @@
+[package]
+name = "migrations"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+name = "migrations"
+path = "src/lib.rs"
+
+[dependencies]
+# External
+tokio = { workspace = true }
+sea-orm-migration = { version = "2.0.0-rc.30", features = ["runtime-tokio-native-tls", "sqlx-postgres"] }

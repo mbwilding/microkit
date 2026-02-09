@@ -1,0 +1,2 @@
+[alias]
+mk = "run --bin mk --"

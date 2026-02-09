@@ -1,0 +1,240 @@
+use anyhow::{Context, Result, bail};
+use clap::{Parser, Subcommand};
+use microkit::config::Config;
+use std::path::PathBuf;
+use std::process::{Command, Stdio};
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
+
+#[derive(Parser)]
+#[command(about = "A CLI tool to manage services", long_about = None)]
+struct Cli {
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Setup the environment
+    Setup,
+    /// Run all services using dapr
+    All,
+    /// Run a specific binary
+    Run {
+        /// Name of the binary to run
+        name: String,
+    },
+    /// Database commands
+    #[command(subcommand)]
+    Db(DbCommands),
+}
+
+#[derive(Subcommand)]
+enum DbCommands {
+    /// Generate entity files from database
+    Entity,
+    /// Generate a new migration
+    Migrate {
+        /// Name of the migration
+        name: String,
+    },
+    /// Drop all tables and re-apply all migrations
+    Fresh,
+}
+
+fn load_config() -> Result<Config> {
+    let config_path = PathBuf::from("config.yml");
+    let config_content = match std::fs::read_to_string(&config_path) {
+        Ok(content) => content,
+        Err(e) => {
+            // For supporting working within the microkit root
+            let template_dir = PathBuf::from("template");
+            let template_config_path = template_dir.join("config.yml");
+            match std::fs::read_to_string(&template_config_path) {
+                Ok(content) => {
+                    let _ = std::env::set_current_dir(&template_dir);
+                    content
+                }
+                Err(_) => return Err(e.into()),
+            }
+        }
+    };
+
+    let config: Config =
+        serde_yaml_ng::from_str(&config_content).context("Failed to parse config.yml")?;
+
+    Ok(config)
+}
+
+fn run_command(program: &str, args: &[&str]) -> Result<()> {
+    let cmd_str = format!("{} {}", program, args.join(" "));
+
+    let mut child = Command::new(program)
+        .args(args)
+        .stdin(Stdio::inherit())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .spawn()
+        .with_context(|| format!("Failed to spawn command: {}", cmd_str))?;
+
+    let child_id = child.id();
+    let interrupted = Arc::new(AtomicBool::new(false));
+    let interrupted_clone = interrupted.clone();
+
+    ctrlc::set_handler(move || {
+        interrupted_clone.store(true, Ordering::SeqCst);
+        signal_process(child_id);
+    })
+    .context("Failed to set Ctrl+C handler")?;
+
+    let output = child.wait()?;
+
+    if !output.success() {
+        if interrupted.load(Ordering::SeqCst) {
+            return Ok(());
+        }
+        anyhow::bail!("Exit {}: {}", output, cmd_str);
+    }
+
+    Ok(())
+}
+
+#[cfg(unix)]
+fn signal_process(pid: u32) {
+    use nix::sys::signal::{Signal, kill};
+    use nix::unistd::Pid;
+    let _ = kill(Pid::from_raw(-(pid as i32)), Signal::SIGINT);
+    let _ = kill(Pid::from_raw(pid as i32), Signal::SIGINT);
+}
+
+#[cfg(windows)]
+fn signal_process(pid: u32) {
+    use windows::Win32::System::Console::CTRL_C_EVENT;
+    use windows::Win32::System::Console::GenerateConsoleCtrlEvent;
+    let _ = unsafe { GenerateConsoleCtrlEvent(CTRL_C_EVENT, pid) };
+}
+
+fn setup(_config: &Config) -> Result<()> {
+    println!("Setting up environment");
+
+    println!("Starting containers with podman-compose");
+    run_command("podman-compose", &["up", "-d"])
+        .context("Failed to start containers with podman-compose")?;
+
+    println!("Initializing dapr");
+    run_command("dapr", &["init", "--slim"]).context("Failed to initialize dapr")?;
+
+    println!("Setup complete!");
+    Ok(())
+}
+
+fn run_all() -> Result<()> {
+    println!("Running all services");
+    run_command("dapr", &["run", "-f", "."]).context("Failed to run services with dapr")
+}
+
+fn run_binary(name: String) -> Result<()> {
+    println!("Running binary: {}", &name);
+    run_command("cargo", &["run", "--bin", &name])
+        .with_context(|| format!("Failed to run binary '{}'", &name))
+}
+
+fn db_entity(config: &Config) -> Result<()> {
+    println!("Generating entities");
+    let (_database_url, database_name, database_with_name) = get_database_details(config)?;
+    run_command(
+        "sea-orm-cli",
+        &[
+            "generate",
+            "entity",
+            "--database-url",
+            &database_with_name,
+            "--database-schema",
+            database_name,
+            // "--with-prelude",
+            // "all",
+            "--with-serde",
+            "both",
+            "--output-dir",
+            "crates/entities/src",
+        ],
+    )
+    .context("Failed to generate entity files from database")
+}
+
+fn db_migrate(config: &Config, name: &str) -> Result<()> {
+    println!("Generating migration: {}", name);
+    let (database_url, database_name, _database_with_name) = get_database_details(config)?;
+    run_command(
+        "sea-orm-cli",
+        &[
+            "migrate",
+            "generate",
+            "-d",
+            "crates/migrations",
+            "--local-time",
+            "--database-url",
+            database_url,
+            "--database-schema",
+            database_name,
+            name,
+        ],
+    )
+    .with_context(|| format!("Failed to generate migration '{}'", name))
+}
+
+fn db_fresh(config: &Config) -> Result<()> {
+    println!("Dropping all tables and re-applying migrations");
+    let (database_url, database_name, _database_with_name) = get_database_details(config)?;
+    run_command(
+        "sea-orm-cli",
+        &[
+            "migrate",
+            "fresh",
+            "-d",
+            "crates/migrations",
+            "--database-url",
+            database_url,
+            "--database-schema",
+            database_name,
+        ],
+    )
+    .context("Failed to refresh database migrations")
+}
+
+fn get_database_details(config: &Config) -> Result<(&str, &str, String)> {
+    let database_url = match &config.database_url {
+        Some(x) => x,
+        None => bail!("database_url missing from config"),
+    };
+
+    let database_name = match &config.database_name {
+        Some(x) => x,
+        None => bail!("database_name missing from config"),
+    };
+
+    let database_with_name = format!("{database_url}/{database_name}");
+
+    Ok((database_url, database_name, database_with_name))
+}
+
+fn main() -> Result<()> {
+    let cli = Cli::parse();
+
+    let config = load_config().context(
+        "Ensure your current working directory is in a service and it contains a valid config.yml",
+    )?;
+
+    match cli.command {
+        Commands::Setup => setup(&config),
+        Commands::All => run_all(),
+        Commands::Run { name } => run_binary(name),
+        Commands::Db(db_cmd) => match db_cmd {
+            DbCommands::Entity => db_entity(&config),
+            DbCommands::Migrate { name } => db_migrate(&config, &name),
+            DbCommands::Fresh => db_fresh(&config),
+        },
+    }
+}

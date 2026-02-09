@@ -1,0 +1,14 @@
+service_name: AwesomeService
+service_desc: The most awesome service
+environment: local
+database_name: awesomeservice
+database_url: postgres://postgres:Developer01@localhost
+database_drop: false
+port_offset: 0
+host: localhost
+log_level: info
+auth:
+  issuer: null
+  jwks_uri: null
+  audience: null
+  client_id: null
