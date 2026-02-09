@@ -10,7 +10,7 @@ use utoipa::openapi::security::{OpenIdConnect, SecurityScheme};
 #[cfg(feature = "auth")]
 pub fn generate_router_with_auth(
     title: &str,
-    description: &str,
+    description: &Option<String>,
     issuer: Option<String>,
 ) -> OpenApiRouter {
     let mut router = generate_router_base(title, description);
@@ -63,18 +63,18 @@ pub fn generate_router_with_auth(
     apply_otel_if_enabled(router)
 }
 
-pub fn generate_router(title: &str, description: &str) -> OpenApiRouter {
+pub fn generate_router(title: &str, description: &Option<String>) -> OpenApiRouter {
     let router = generate_router_base(title, description);
     apply_otel_if_enabled(router)
 }
 
-fn generate_router_base(title: &str, description: &str) -> OpenApiRouter {
+fn generate_router_base(title: &str, description: &Option<String>) -> OpenApiRouter {
     #[derive(OpenApi)]
     struct ApiDoc;
 
     let mut openapi = ApiDoc::openapi();
     openapi.info.title = title.to_string();
-    openapi.info.description = Some(description.to_string());
+    openapi.info.description = description.clone();
 
     OpenApiRouter::with_openapi(openapi)
 }

@@ -1,4 +1,9 @@
-use anyhow::{Context, Result, bail};
+pub(crate) mod database;
+pub(crate) mod new;
+pub(crate) mod run;
+pub(crate) mod setup;
+
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use microkit::config::Config;
 use std::path::PathBuf;
@@ -9,7 +14,7 @@ use std::sync::{
 };
 
 #[derive(Parser)]
-#[command(about = "A CLI tool to manage services", long_about = None)]
+#[command(about = "MicroKit CLI tool to create and manage services", long_about = None)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -17,6 +22,15 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Creates a new service
+    New {
+        /// Name of the service
+        name: String,
+        /// Port offset, this will offset your ports so you can run multiple services at the same time
+        port_offset: u16,
+        /// Description of the service
+        description: Option<String>,
+    },
     /// Setup the environment
     Setup,
     /// Run all services using dapr
@@ -28,20 +42,31 @@ enum Commands {
     },
     /// Database commands
     #[command(subcommand)]
-    Db(DbCommands),
+    Db(database::Commands),
 }
 
-#[derive(Subcommand)]
-enum DbCommands {
-    /// Generate entity files from database
-    Entity,
-    /// Generate a new migration
-    Migrate {
-        /// Name of the migration
-        name: String,
-    },
-    /// Drop all tables and re-apply all migrations
-    Fresh,
+fn main() -> Result<()> {
+    let cli = Cli::parse();
+
+    let config = load_config().context(
+        "Ensure your current working directory is in a service and it contains a valid config.yml",
+    )?;
+
+    match cli.command {
+        Commands::New {
+            name,
+            port_offset,
+            description,
+        } => new::new(name, port_offset, description),
+        Commands::Setup => setup::setup(),
+        Commands::All => run::all(),
+        Commands::Run { name } => run::binary(name),
+        Commands::Db(cmd) => match cmd {
+            database::Commands::Entity => database::entity(&config),
+            database::Commands::Migrate { name } => database::migrate(&config, &name),
+            database::Commands::Fresh => database::fresh(&config),
+        },
+    }
 }
 
 fn load_config() -> Result<Config> {
@@ -49,7 +74,7 @@ fn load_config() -> Result<Config> {
     let config_content = match std::fs::read_to_string(&config_path) {
         Ok(content) => content,
         Err(e) => {
-            // For supporting working within the microkit root
+            // For supporting working within the MicroKit repository
             let template_dir = PathBuf::from("template");
             let template_config_path = template_dir.join("config.yml");
             match std::fs::read_to_string(&template_config_path) {
@@ -68,7 +93,7 @@ fn load_config() -> Result<Config> {
     Ok(config)
 }
 
-fn run_command(program: &str, args: &[&str]) -> Result<()> {
+pub(crate) fn run_command(program: &str, args: &[&str]) -> Result<()> {
     let cmd_str = format!("{} {}", program, args.join(" "));
 
     let mut child = Command::new(program)
@@ -85,7 +110,21 @@ fn run_command(program: &str, args: &[&str]) -> Result<()> {
 
     ctrlc::set_handler(move || {
         interrupted_clone.store(true, Ordering::SeqCst);
-        signal_process(child_id);
+
+        #[cfg(unix)]
+        {
+            use nix::sys::signal::{Signal, kill};
+            use nix::unistd::Pid;
+            let _ = kill(Pid::from_raw(-(child_id as i32)), Signal::SIGINT);
+            let _ = kill(Pid::from_raw(child_id as i32), Signal::SIGINT);
+        }
+
+        #[cfg(windows)]
+        {
+            use windows::Win32::System::Console::CTRL_C_EVENT;
+            use windows::Win32::System::Console::GenerateConsoleCtrlEvent;
+            let _ = unsafe { GenerateConsoleCtrlEvent(CTRL_C_EVENT, child_id) };
+        }
     })
     .context("Failed to set Ctrl+C handler")?;
 
@@ -99,142 +138,4 @@ fn run_command(program: &str, args: &[&str]) -> Result<()> {
     }
 
     Ok(())
-}
-
-#[cfg(unix)]
-fn signal_process(pid: u32) {
-    use nix::sys::signal::{Signal, kill};
-    use nix::unistd::Pid;
-    let _ = kill(Pid::from_raw(-(pid as i32)), Signal::SIGINT);
-    let _ = kill(Pid::from_raw(pid as i32), Signal::SIGINT);
-}
-
-#[cfg(windows)]
-fn signal_process(pid: u32) {
-    use windows::Win32::System::Console::CTRL_C_EVENT;
-    use windows::Win32::System::Console::GenerateConsoleCtrlEvent;
-    let _ = unsafe { GenerateConsoleCtrlEvent(CTRL_C_EVENT, pid) };
-}
-
-fn setup(_config: &Config) -> Result<()> {
-    println!("Setting up environment");
-
-    println!("Starting containers with podman-compose");
-    run_command("podman-compose", &["up", "-d"])
-        .context("Failed to start containers with podman-compose")?;
-
-    println!("Initializing dapr");
-    run_command("dapr", &["init", "--slim"]).context("Failed to initialize dapr")?;
-
-    println!("Setup complete!");
-    Ok(())
-}
-
-fn run_all() -> Result<()> {
-    println!("Running all services");
-    run_command("dapr", &["run", "-f", "."]).context("Failed to run services with dapr")
-}
-
-fn run_binary(name: String) -> Result<()> {
-    println!("Running binary: {}", &name);
-    run_command("cargo", &["run", "--bin", &name])
-        .with_context(|| format!("Failed to run binary '{}'", &name))
-}
-
-fn db_entity(config: &Config) -> Result<()> {
-    println!("Generating entities");
-    let (_database_url, database_name, database_with_name) = get_database_details(config)?;
-    run_command(
-        "sea-orm-cli",
-        &[
-            "generate",
-            "entity",
-            "--database-url",
-            &database_with_name,
-            "--database-schema",
-            database_name,
-            // "--with-prelude",
-            // "all",
-            "--with-serde",
-            "both",
-            "--output-dir",
-            "crates/entities/src",
-        ],
-    )
-    .context("Failed to generate entity files from database")
-}
-
-fn db_migrate(config: &Config, name: &str) -> Result<()> {
-    println!("Generating migration: {}", name);
-    let (database_url, database_name, _database_with_name) = get_database_details(config)?;
-    run_command(
-        "sea-orm-cli",
-        &[
-            "migrate",
-            "generate",
-            "-d",
-            "crates/migrations",
-            "--local-time",
-            "--database-url",
-            database_url,
-            "--database-schema",
-            database_name,
-            name,
-        ],
-    )
-    .with_context(|| format!("Failed to generate migration '{}'", name))
-}
-
-fn db_fresh(config: &Config) -> Result<()> {
-    println!("Dropping all tables and re-applying migrations");
-    let (database_url, database_name, _database_with_name) = get_database_details(config)?;
-    run_command(
-        "sea-orm-cli",
-        &[
-            "migrate",
-            "fresh",
-            "-d",
-            "crates/migrations",
-            "--database-url",
-            database_url,
-            "--database-schema",
-            database_name,
-        ],
-    )
-    .context("Failed to refresh database migrations")
-}
-
-fn get_database_details(config: &Config) -> Result<(&str, &str, String)> {
-    let database_url = match &config.database_url {
-        Some(x) => x,
-        None => bail!("database_url missing from config"),
-    };
-
-    let database_name = match &config.database_name {
-        Some(x) => x,
-        None => bail!("database_name missing from config"),
-    };
-
-    let database_with_name = format!("{database_url}/{database_name}");
-
-    Ok((database_url, database_name, database_with_name))
-}
-
-fn main() -> Result<()> {
-    let cli = Cli::parse();
-
-    let config = load_config().context(
-        "Ensure your current working directory is in a service and it contains a valid config.yml",
-    )?;
-
-    match cli.command {
-        Commands::Setup => setup(&config),
-        Commands::All => run_all(),
-        Commands::Run { name } => run_binary(name),
-        Commands::Db(db_cmd) => match db_cmd {
-            DbCommands::Entity => db_entity(&config),
-            DbCommands::Migrate { name } => db_migrate(&config, &name),
-            DbCommands::Fresh => db_fresh(&config),
-        },
-    }
 }
