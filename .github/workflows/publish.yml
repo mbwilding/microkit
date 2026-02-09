@@ -51,8 +51,8 @@ jobs:
           VERSION: ${{ steps.determine.outputs.FullSemVer }}
         run: |
           # Remove no-verify
-          cargo publish --no-verify --allow-dirty --package microkit
-          cargo publish --package microkit-cli --target-dir target/cli/
+          cargo publish --package microkit --allow-dirty --no-verify
+          cargo publish --package microkit-cli --allow-dirty --target-dir target/cli/
 
       - name: Git Tag
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
