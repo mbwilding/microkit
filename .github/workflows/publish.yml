@@ -41,13 +41,18 @@ jobs:
           # CLI
           sed -i '/microkit = { workspace = true }/s//microkit = "${{ steps.determine.outputs.FullSemVer }}"/' crates/cli/Cargo.toml
 
+      - name: Tests
+        run: |
+          cargo test
+
       - name: Publish to crates.io
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
           VERSION: ${{ steps.determine.outputs.FullSemVer }}
         run: |
-          cargo publish --allow-dirty --package microkit
-          cargo publish --allow-dirty --package microkit-cli
+          # Remove no-verify
+          cargo publish --no-verify --allow-dirty --package microkit
+          cargo publish --package microkit-cli build/cli/
 
       - name: Git Tag
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
