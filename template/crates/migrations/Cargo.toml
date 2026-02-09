@@ -11,4 +11,4 @@ path = "src/lib.rs"
 [dependencies]
 # External
 tokio = { workspace = true }
-sea-orm-migration = { version = "2.0.0-rc.30", features = ["runtime-tokio-native-tls", "sqlx-postgres"] }
+sea-orm-migration = { version = "2.0.0-rc.31", features = ["runtime-tokio-native-tls", "sqlx-postgres"] }
