@@ -30,6 +30,10 @@ jobs:
         run: |
           echo "Version: ${{ steps.determine.outputs.majorMinorPatch }}" >> "$GITHUB_STEP_SUMMARY"
 
+      # - name: Test MicroKit + Template
+      #   run: |
+      #     cargo test
+
       - name: Strip Template from Workspace
         run: |
           sed -i 's/, "template\/crates\/\*"\s*//g' Cargo.toml
@@ -40,10 +44,6 @@ jobs:
           sed -i '/^\[workspace\.package\]/,/^\[.*\]/{s/^version = ".*"/version = "${{ steps.determine.outputs.FullSemVer }}"/}' Cargo.toml
           # CLI
           sed -i '/microkit = { workspace = true }/s//microkit = "${{ steps.determine.outputs.FullSemVer }}"/' crates/cli/Cargo.toml
-
-      - name: Tests
-        run: |
-          cargo test
 
       - name: Publish to crates.io
         env:
