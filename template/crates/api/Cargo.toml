@@ -14,8 +14,8 @@ name = "api"
 path = "src/lib.rs"
 
 [dependencies]
-# Kit
-microkit = { path = "../../../crates/microkit" }
+# MicroKit
+microkit = { workspace = true }
 # Internal
 entities = { workspace = true }
 migrations = { workspace = true }

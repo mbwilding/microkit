@@ -3,6 +3,8 @@ resolver = "3"
 members = ["crates/*"]
 
 [workspace.dependencies]
+# MicroKit
+microkit = { path = "../crates/microkit" }
 # Workspace
 entities = { path = "crates/entities" }
 migrations = { path = "crates/migrations" }
