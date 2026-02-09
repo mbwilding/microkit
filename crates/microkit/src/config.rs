@@ -18,8 +18,7 @@ pub async fn get() -> Result<Config> {
 #[derive(Debug, Deserialize)]
 pub struct Config {
     pub service_name: String,
-    pub service_desc: String,
-    pub environment: String,
+    pub service_desc: Option<String>,
     pub host: Option<String>,
     pub log_level: Option<String>,
     pub port_offset: Option<u16>,

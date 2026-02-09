@@ -17,6 +17,15 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Creates a new service
+    New {
+        /// Name of the service
+        name: String,
+        /// Description of the service
+        description: Option<String>,
+        /// Port offset, this will offset your ports so you can run multiple services at the same time
+        port_offset: u16,
+    },
     /// Setup the environment
     Setup,
     /// Run all services using dapr
@@ -85,7 +94,21 @@ fn run_command(program: &str, args: &[&str]) -> Result<()> {
 
     ctrlc::set_handler(move || {
         interrupted_clone.store(true, Ordering::SeqCst);
-        signal_process(child_id);
+
+        #[cfg(unix)]
+        {
+            use nix::sys::signal::{Signal, kill};
+            use nix::unistd::Pid;
+            let _ = kill(Pid::from_raw(-(child_id as i32)), Signal::SIGINT);
+            let _ = kill(Pid::from_raw(child_id as i32), Signal::SIGINT);
+        }
+
+        #[cfg(windows)]
+        {
+            use windows::Win32::System::Console::CTRL_C_EVENT;
+            use windows::Win32::System::Console::GenerateConsoleCtrlEvent;
+            let _ = unsafe { GenerateConsoleCtrlEvent(CTRL_C_EVENT, child_id) };
+        }
     })
     .context("Failed to set Ctrl+C handler")?;
 
@@ -101,22 +124,18 @@ fn run_command(program: &str, args: &[&str]) -> Result<()> {
     Ok(())
 }
 
-#[cfg(unix)]
-fn signal_process(pid: u32) {
-    use nix::sys::signal::{Signal, kill};
-    use nix::unistd::Pid;
-    let _ = kill(Pid::from_raw(-(pid as i32)), Signal::SIGINT);
-    let _ = kill(Pid::from_raw(pid as i32), Signal::SIGINT);
+fn new(name: String, description: Option<String>, port_offset: u16) -> Result<()> {
+    todo!();
+
+    println!("Creating new service");
+
+    // run_command("dapr", &["init", "--slim"]).context("Failed to initialize dapr")?;
+
+    println!("Created service '{name}' successfully");
+    Ok(())
 }
 
-#[cfg(windows)]
-fn signal_process(pid: u32) {
-    use windows::Win32::System::Console::CTRL_C_EVENT;
-    use windows::Win32::System::Console::GenerateConsoleCtrlEvent;
-    let _ = unsafe { GenerateConsoleCtrlEvent(CTRL_C_EVENT, pid) };
-}
-
-fn setup(_config: &Config) -> Result<()> {
+fn setup() -> Result<()> {
     println!("Setting up environment");
 
     println!("Starting containers with podman-compose");
@@ -126,7 +145,7 @@ fn setup(_config: &Config) -> Result<()> {
     println!("Initializing dapr");
     run_command("dapr", &["init", "--slim"]).context("Failed to initialize dapr")?;
 
-    println!("Setup complete!");
+    println!("Setup complete");
     Ok(())
 }
 
@@ -228,10 +247,15 @@ fn main() -> Result<()> {
     )?;
 
     match cli.command {
-        Commands::Setup => setup(&config),
+        Commands::New {
+            name,
+            description,
+            port_offset,
+        } => new(name, description, port_offset),
+        Commands::Setup => setup(),
         Commands::All => run_all(),
         Commands::Run { name } => run_binary(name),
-        Commands::Db(db_cmd) => match db_cmd {
+        Commands::Db(cmd) => match cmd {
             DbCommands::Entity => db_entity(&config),
             DbCommands::Migrate { name } => db_migrate(&config, &name),
             DbCommands::Fresh => db_fresh(&config),

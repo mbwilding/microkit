@@ -1,6 +1,5 @@
 service_name: AwesomeService
 service_desc: The most awesome service
-environment: local
 database_name: awesomeservice
 database_url: postgres://postgres:Developer01@localhost
 database_drop: false
