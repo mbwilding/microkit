@@ -321,8 +321,8 @@ fn main() -> Result<()> {
     match cli.command {
         Commands::New {
             name,
-            description,
             port_offset,
+            description,
         } => new(name, port_offset, description),
         Commands::Setup => setup(),
         Commands::All => run_all(),
