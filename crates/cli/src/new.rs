@@ -1,23 +1,30 @@
 use anyhow::{Context, Result, bail};
-use include_dir::{Dir, include_dir};
 use microkit::config::Config;
 use std::path::{Path, PathBuf};
 use toml_edit::DocumentMut;
 
-static TEMPLATE_DIR: Dir = include_dir!("$WORKSPACE_ROOT/template");
-
-pub fn new(name: String, port_offset: u16, description: Option<String>) -> Result<()> {
+pub async fn new(
+    name: String,
+    port_offset: u16,
+    description: Option<String>,
+    branch: Option<String>,
+) -> Result<()> {
     println!("Creating new service '{}'", name);
 
     let target_dir = PathBuf::from(&name);
     if target_dir.exists() {
-        bail!("Directory '{}' already exists", name);
+        bail!(
+            "Cannot create service: directory '{}' already exists. Please choose a different name or remove the existing directory.",
+            name
+        );
     }
 
     std::fs::create_dir(&target_dir)
         .with_context(|| format!("Failed to create directory '{}'", name))?;
 
-    extract_dir(&TEMPLATE_DIR, &target_dir).context("Failed to extract template files")?;
+    get_template(&target_dir, branch)
+        .await
+        .context("Failed to extract template files")?;
 
     let cargo_disabled = target_dir.join("Cargo.toml-disabled");
     let cargo_toml = target_dir.join("Cargo.toml");
@@ -34,24 +41,124 @@ pub fn new(name: String, port_offset: u16, description: Option<String>) -> Resul
     Ok(())
 }
 
-fn extract_dir(dir: &Dir, target: &PathBuf) -> Result<()> {
-    for file in dir.files() {
-        let file_path = target.join(file.path());
-
-        if let Some(parent) = file_path.parent() {
-            std::fs::create_dir_all(parent)
-                .with_context(|| format!("Failed to create directory '{}'", parent.display()))?;
+#[allow(unused_variables)]
+async fn get_template(target: &Path, branch: Option<String>) -> Result<()> {
+    #[cfg(debug_assertions)]
+    {
+        let template_path = PathBuf::from("template");
+        if !template_path.exists() {
+            bail!(
+                "Template directory not found at: {}",
+                template_path.display()
+            );
         }
-
-        std::fs::write(&file_path, file.contents())
-            .with_context(|| format!("Failed to write file '{}'", file_path.display()))?;
+        println!("Using local template");
+        copy_dir_all(&template_path, target).context("Failed to copy local template")?;
     }
 
-    for subdir in dir.dirs() {
-        let subdir_path = target.join(subdir.path());
-        std::fs::create_dir_all(&subdir_path)
-            .with_context(|| format!("Failed to create directory '{}'", subdir_path.display()))?;
-        extract_dir(subdir, target)?;
+    #[cfg(not(debug_assertions))]
+    {
+        // Release build: download from GitHub
+        println!("Downloading latest template from GitHub...");
+        download_and_extract_template(target, branch)
+            .await
+            .context("Failed to download template from GitHub")?;
+    }
+
+    Ok(())
+}
+
+#[cfg(debug_assertions)]
+fn copy_dir_all(src: &Path, dst: &Path) -> Result<()> {
+    std::fs::create_dir_all(dst)
+        .with_context(|| format!("Failed to create directory: {}", dst.display()))?;
+
+    for entry in std::fs::read_dir(src)
+        .with_context(|| format!("Failed to read directory: {}", src.display()))?
+    {
+        let entry = entry?;
+        let path = entry.path();
+        let file_name = entry.file_name();
+        let dest_path = dst.join(&file_name);
+
+        // Skip any directories that look like generated projects
+        if path.is_dir() {
+            let name_str = file_name.to_string_lossy();
+            // Skip hidden directories except .cargo
+            if name_str.starts_with('.') && name_str != ".cargo" {
+                continue;
+            }
+            copy_dir_all(&path, &dest_path)
+                .with_context(|| format!("Failed to copy directory: {}", path.display()))?;
+        } else {
+            std::fs::copy(&path, &dest_path).with_context(|| {
+                format!(
+                    "Failed to copy file: {} to {}",
+                    path.display(),
+                    dest_path.display()
+                )
+            })?;
+        }
+    }
+
+    Ok(())
+}
+
+#[cfg(not(debug_assertions))]
+async fn download_and_extract_template(target: &Path, branch: Option<String>) -> Result<()> {
+    use std::io::Cursor;
+    use zip::ZipArchive;
+
+    let url = format!(
+        "https://github.com/mbwilding/microkit/archive/refs/heads/{}.zip",
+        branch.as_deref().unwrap_or("main")
+    );
+    let response = reqwest::get(url)
+        .await
+        .context("Failed to download template from GitHub")?;
+
+    if !response.status().is_success() {
+        bail!("Failed to download template: HTTP {}", response.status());
+    }
+
+    let bytes = response
+        .bytes()
+        .await
+        .context("Failed to read template download")?;
+
+    let cursor = Cursor::new(bytes);
+    let mut archive = ZipArchive::new(cursor).context("Failed to read zip archive")?;
+
+    let prefix = "microkit-main/template/";
+
+    for i in 0..archive.len() {
+        let mut file = archive.by_index(i)?;
+        let file_path = file.name();
+
+        // Only extract files from the template directory
+        if !file_path.starts_with(prefix) {
+            continue;
+        }
+
+        // Remove the prefix to get the relative path
+        let relative_path = file_path.strip_prefix(prefix).unwrap();
+
+        if relative_path.is_empty() {
+            continue;
+        }
+
+        let out_path = target.join(relative_path);
+
+        if file.is_dir() {
+            std::fs::create_dir_all(&out_path)?;
+        } else {
+            if let Some(parent) = out_path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+
+            let mut out_file = std::fs::File::create(&out_path)?;
+            std::io::copy(&mut file, &mut out_file)?;
+        }
     }
 
     Ok(())

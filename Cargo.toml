@@ -11,9 +11,6 @@ license-file = "LICENSE"
 readme = "README.md"
 keywords = ["microservice"]
 
-# Required for pipeline build
-include = ["template"]
-
 [workspace.dependencies]
 # Internal
 microkit = { path = "crates/microkit" }

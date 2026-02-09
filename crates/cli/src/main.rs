@@ -30,6 +30,8 @@ enum Commands {
         port_offset: u16,
         /// Description of the service
         description: Option<String>,
+        /// The MicroKit git branch to create the service from (default: main)
+        branch: Option<String>,
     },
     /// Setup the environment
     Setup,
@@ -45,27 +47,30 @@ enum Commands {
     Db(database::Commands),
 }
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     let cli = Cli::parse();
-
-    let config = load_config().context(
-        "Ensure your current working directory is in a service and it contains a valid config.yml",
-    )?;
 
     match cli.command {
         Commands::New {
             name,
             port_offset,
             description,
-        } => new::new(name, port_offset, description),
+            branch,
+        } => new::new(name, port_offset, description, branch).await,
         Commands::Setup => setup::setup(),
         Commands::All => run::all(),
         Commands::Run { name } => run::binary(name),
-        Commands::Db(cmd) => match cmd {
-            database::Commands::Entity => database::entity(&config),
-            database::Commands::Migrate { name } => database::migrate(&config, &name),
-            database::Commands::Fresh => database::fresh(&config),
-        },
+        Commands::Db(cmd) => {
+            let config = load_config().context(
+                "Ensure your current working directory is in a service and it contains a valid config.yml",
+            )?;
+            match cmd {
+                database::Commands::Entity => database::entity(&config),
+                database::Commands::Migrate { name } => database::migrate(&config, &name),
+                database::Commands::Fresh => database::fresh(&config),
+            }
+        }
     }
 }
 
