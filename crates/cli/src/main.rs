@@ -1,6 +1,10 @@
-use anyhow::{Context, Result, bail};
+pub(crate) mod database;
+pub(crate) mod new;
+pub(crate) mod run;
+pub(crate) mod setup;
+
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use include_dir::{Dir, include_dir};
 use microkit::config::Config;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
@@ -9,10 +13,8 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
 };
 
-static TEMPLATE_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../../template");
-
 #[derive(Parser)]
-#[command(about = "A CLI tool to manage services", long_about = None)]
+#[command(about = "MicroKit CLI tool to create and manage services", long_about = None)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -40,20 +42,7 @@ enum Commands {
     },
     /// Database commands
     #[command(subcommand)]
-    Db(DbCommands),
-}
-
-#[derive(Subcommand)]
-enum DbCommands {
-    /// Generate entity files from database
-    Entity,
-    /// Generate a new migration
-    Migrate {
-        /// Name of the migration
-        name: String,
-    },
-    /// Drop all tables and re-apply all migrations
-    Fresh,
+    Db(database::Commands),
 }
 
 fn load_config() -> Result<Config> {
@@ -80,7 +69,7 @@ fn load_config() -> Result<Config> {
     Ok(config)
 }
 
-fn run_command(program: &str, args: &[&str]) -> Result<()> {
+pub(crate) fn run_command(program: &str, args: &[&str]) -> Result<()> {
     let cmd_str = format!("{} {}", program, args.join(" "));
 
     let mut child = Command::new(program)
@@ -127,190 +116,6 @@ fn run_command(program: &str, args: &[&str]) -> Result<()> {
     Ok(())
 }
 
-fn new(name: String, port_offset: u16, description: Option<String>) -> Result<()> {
-    println!("Creating new service '{}'", name);
-
-    let target_dir = PathBuf::from(&name);
-    if target_dir.exists() {
-        bail!("Directory '{}' already exists", name);
-    }
-
-    std::fs::create_dir(&target_dir)
-        .with_context(|| format!("Failed to create directory '{}'", name))?;
-
-    // Extract all files from the embedded template
-    extract_dir(&TEMPLATE_DIR, &target_dir).context("Failed to extract template files")?;
-
-    // Rename Cargo.toml-disabled to Cargo.toml
-    let cargo_disabled = target_dir.join("Cargo.toml-disabled");
-    let cargo_toml = target_dir.join("Cargo.toml");
-    if cargo_disabled.exists() {
-        std::fs::rename(&cargo_disabled, &cargo_toml)
-            .context("Failed to rename Cargo.toml-disabled to Cargo.toml")?;
-    }
-
-    // Update config.yml with the provided name, description, and port_offset
-    update_config(&target_dir, &name, description, port_offset)?;
-
-    println!("Created service '{}' successfully", name);
-    println!("Next steps:");
-    println!("  cd {}", name);
-    println!("  mk setup");
-
-    Ok(())
-}
-
-fn extract_dir(dir: &Dir, target: &PathBuf) -> Result<()> {
-    for file in dir.files() {
-        let file_path = target.join(file.path());
-
-        if let Some(parent) = file_path.parent() {
-            std::fs::create_dir_all(parent)
-                .with_context(|| format!("Failed to create directory '{}'", parent.display()))?;
-        }
-
-        std::fs::write(&file_path, file.contents())
-            .with_context(|| format!("Failed to write file '{}'", file_path.display()))?;
-    }
-
-    for subdir in dir.dirs() {
-        let subdir_path = target.join(subdir.path());
-        std::fs::create_dir_all(&subdir_path)
-            .with_context(|| format!("Failed to create directory '{}'", subdir_path.display()))?;
-        extract_dir(subdir, target)?;
-    }
-
-    Ok(())
-}
-
-fn update_config(
-    target_dir: &PathBuf,
-    name: &str,
-    description: Option<String>,
-    port_offset: u16,
-) -> Result<()> {
-    let config_path = target_dir.join("config.yml");
-    let config_content =
-        std::fs::read_to_string(&config_path).context("Failed to read config.yml")?;
-
-    let mut config: Config =
-        serde_yaml_ng::from_str(&config_content).context("Failed to parse config.yml")?;
-
-    config.service_name = name.to_string();
-    config.service_desc = description;
-    config.port_offset = Some(port_offset);
-
-    let updated_content =
-        serde_yaml_ng::to_string(&config).context("Failed to serialize config.yml")?;
-    std::fs::write(&config_path, updated_content).context("Failed to write updated config.yml")?;
-
-    Ok(())
-}
-
-fn setup() -> Result<()> {
-    println!("Setting up environment");
-
-    println!("Starting containers with podman-compose");
-    run_command("podman-compose", &["up", "-d"])
-        .context("Failed to start containers with podman-compose")?;
-
-    println!("Initializing dapr");
-    run_command("dapr", &["init", "--slim"]).context("Failed to initialize dapr")?;
-
-    println!("Setup complete");
-    Ok(())
-}
-
-fn run_all() -> Result<()> {
-    println!("Running all services");
-    run_command("dapr", &["run", "-f", "."]).context("Failed to run services with dapr")
-}
-
-fn run_binary(name: String) -> Result<()> {
-    println!("Running binary: {}", &name);
-    run_command("cargo", &["run", "--bin", &name])
-        .with_context(|| format!("Failed to run binary '{}'", &name))
-}
-
-fn db_entity(config: &Config) -> Result<()> {
-    println!("Generating entities");
-    let (_database_url, database_name, database_with_name) = get_database_details(config)?;
-    run_command(
-        "sea-orm-cli",
-        &[
-            "generate",
-            "entity",
-            "--database-url",
-            &database_with_name,
-            "--database-schema",
-            database_name,
-            // "--with-prelude",
-            // "all",
-            "--with-serde",
-            "both",
-            "--output-dir",
-            "crates/entities/src",
-        ],
-    )
-    .context("Failed to generate entity files from database")
-}
-
-fn db_migrate(config: &Config, name: &str) -> Result<()> {
-    println!("Generating migration: {}", name);
-    let (database_url, database_name, _database_with_name) = get_database_details(config)?;
-    run_command(
-        "sea-orm-cli",
-        &[
-            "migrate",
-            "generate",
-            "-d",
-            "crates/migrations",
-            "--local-time",
-            "--database-url",
-            database_url,
-            "--database-schema",
-            database_name,
-            name,
-        ],
-    )
-    .with_context(|| format!("Failed to generate migration '{}'", name))
-}
-
-fn db_fresh(config: &Config) -> Result<()> {
-    println!("Dropping all tables and re-applying migrations");
-    let (database_url, database_name, _database_with_name) = get_database_details(config)?;
-    run_command(
-        "sea-orm-cli",
-        &[
-            "migrate",
-            "fresh",
-            "-d",
-            "crates/migrations",
-            "--database-url",
-            database_url,
-            "--database-schema",
-            database_name,
-        ],
-    )
-    .context("Failed to refresh database migrations")
-}
-
-fn get_database_details(config: &Config) -> Result<(&str, &str, String)> {
-    let database_url = match &config.database_url {
-        Some(x) => x,
-        None => bail!("database_url missing from config"),
-    };
-
-    let database_name = match &config.database_name {
-        Some(x) => x,
-        None => bail!("database_name missing from config"),
-    };
-
-    let database_with_name = format!("{database_url}/{database_name}");
-
-    Ok((database_url, database_name, database_with_name))
-}
-
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
@@ -323,14 +128,14 @@ fn main() -> Result<()> {
             name,
             port_offset,
             description,
-        } => new(name, port_offset, description),
-        Commands::Setup => setup(),
-        Commands::All => run_all(),
-        Commands::Run { name } => run_binary(name),
+        } => new::new(name, port_offset, description),
+        Commands::Setup => setup::setup(),
+        Commands::All => run::all(),
+        Commands::Run { name } => run::binary(name),
         Commands::Db(cmd) => match cmd {
-            DbCommands::Entity => db_entity(&config),
-            DbCommands::Migrate { name } => db_migrate(&config, &name),
-            DbCommands::Fresh => db_fresh(&config),
+            database::Commands::Entity => database::entity(&config),
+            database::Commands::Migrate { name } => database::migrate(&config, &name),
+            database::Commands::Fresh => database::fresh(&config),
         },
     }
 }
