@@ -3,13 +3,10 @@ name: Publish to crates.io
 on:
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
   publish:
     permissions:
-      contents: read
+      contents: write
 
     runs-on: ubuntu-latest
     steps:
