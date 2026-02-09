@@ -47,21 +47,20 @@ jobs:
 
       - name: Replace version
         run: |
-          sed -i '/^\[workspace\.package\]/,/^\[.*\]/{s/^version = ".*"/version = "${{ steps.determine.outputs.majorMinorPatch }}"/}' Cargo.toml
-          cat Cargo.toml
+          sed -i '/^\[workspace\.package\]/,/^\[.*\]/{s/^version = ".*"/version = "${{ steps.determine.outputs.FullSemVer }}"/}' Cargo.toml
 
       - name: Publish to crates.io
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
-          cargo publish --locked
+          cargo publish
 
       - name: Git Tag
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         shell: pwsh
         env:
           NAME: "github-actions[bot]"
-          VERSION: "${{ steps.determine.outputs.majorMinorPatch }}"
+          VERSION: "${{ steps.determine.outputs.FullSemVer }}"
         run: |
           git config user.name "$NAME"
           git config user.email "$NAME@users.noreply.github.com"
