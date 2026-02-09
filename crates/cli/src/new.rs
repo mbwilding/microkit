@@ -28,9 +28,6 @@ pub fn new(name: String, port_offset: u16, description: Option<String>) -> Resul
     update_config(&target_dir, &name, description, port_offset)?;
 
     println!("Created service '{}' successfully", name);
-    println!("Next steps:");
-    println!("  cd {}", name);
-    println!("  mk setup");
 
     Ok(())
 }
