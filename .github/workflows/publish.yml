@@ -52,7 +52,7 @@ jobs:
         run: |
           # Remove no-verify
           cargo publish --no-verify --allow-dirty --package microkit
-          cargo publish --package microkit-cli build/cli/
+          cargo publish --package microkit-cli --target-dir build/cli/
 
       - name: Git Tag
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
