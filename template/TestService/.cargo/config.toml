@@ -1,2 +1,0 @@
-[alias]
-mk = "run --manifest-path ../Cargo.toml --bin mk --"
