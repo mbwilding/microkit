@@ -56,7 +56,6 @@ jobs:
 
       - name: Git Tag
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-        shell: pwsh
         env:
           NAME: "github-actions[bot]"
           VERSION: "${{ steps.determine.outputs.FullSemVer }}"
