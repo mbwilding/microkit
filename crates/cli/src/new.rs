@@ -4,7 +4,7 @@ use microkit::config::Config;
 use std::path::{Path, PathBuf};
 use toml_edit::DocumentMut;
 
-static TEMPLATE_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../../template");
+static TEMPLATE_DIR: Dir = include_dir!("template");
 
 pub fn new(name: String, port_offset: u16, description: Option<String>) -> Result<()> {
     println!("Creating new service '{}'", name);
