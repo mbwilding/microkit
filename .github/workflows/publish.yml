@@ -50,10 +50,8 @@ jobs:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
           VERSION: ${{ steps.determine.outputs.FullSemVer }}
         run: |
-          # Remove no-verify
-          # cargo publish --package microkit --allow-dirty --no-verify
-          # cargo publish --package microkit-cli --allow-dirty
-          cargo publish --package microkit microkit-cli --allow-dirty
+          cargo publish --package --allow-dirty microkit
+          cargo publish --package --allow-dirty microkit-cli
 
       - name: Git Tag
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
