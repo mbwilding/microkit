@@ -27,7 +27,6 @@ jobs:
           useConfigFile: true
 
       - name: Version Summary
-        shell: pwsh
         run: |
           echo "Version: ${{ steps.determine.outputs.majorMinorPatch }}" >> "$GITHUB_STEP_SUMMARY"
 
