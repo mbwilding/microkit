@@ -7,8 +7,3 @@ database_drop: false
 port_offset: 0
 host: localhost
 log_level: info
-auth:
-  issuer: null
-  jwks_uri: null
-  audience: null
-  client_id: null

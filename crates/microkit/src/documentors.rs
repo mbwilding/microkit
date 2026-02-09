@@ -30,19 +30,21 @@ pub fn documentors(
             let mut swagger_ui = SwaggerUi::new(endpoint).url(openapi_json, api.clone());
 
             // Configure OAuth2 if auth is available
-            if let Some(auth) = auth_config
-                && let (Some(client_id), Some(client_secret)) =
-                    (&auth.client_id, &auth.client_secret)
-            {
-                let oauth_config = oauth::Config::new()
-                    .client_id(client_id)
-                    .client_secret(client_secret)
-                    .scopes(vec![
-                        "openid".to_string(),
-                        "email".to_string(),
-                        "profile".to_string(),
-                    ])
-                    .use_pkce_with_authorization_code_grant(false);
+            if let Some(auth) = auth_config {
+                let mut oauth_config =
+                    oauth::Config::new().use_pkce_with_authorization_code_grant(false);
+
+                if let Some(client_id) = &auth.client_id {
+                    oauth_config = oauth_config.client_id(client_id);
+                }
+
+                if let Some(client_secret) = &auth.client_secret {
+                    oauth_config = oauth_config.client_secret(client_secret);
+                }
+
+                if let Some(scopes) = &auth.scopes {
+                    oauth_config = oauth_config.scopes(scopes.clone());
+                }
 
                 swagger_ui = swagger_ui.oauth(oauth_config);
             }

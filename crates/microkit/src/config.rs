@@ -76,8 +76,10 @@ pub struct AuthConfigYaml {
     pub jwks_uri: String,
     /// Expected audience/client ID
     pub audience: Option<String>,
-    /// Client ID
+    /// Documentor: Default scopes
+    pub scopes: Option<Vec<String>>,
+    /// Documentor: Client ID
     pub client_id: Option<String>,
-    /// Client secret (Provide within config-private.yml so it auto-fills your documentor it doesn't get committed)
+    /// Documentor: Client secret (Provide within config-private.yml so it doesn't get committed)
     pub client_secret: Option<String>,
 }
