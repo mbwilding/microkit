@@ -5,7 +5,11 @@ members = ["crates/*", "template/crates/*"]
 [workspace.package]
 version = "0.0.0"
 authors = ["Matthew Wilding <mbwilding@gmail.com>"]
+repository = "https://github.com/mbwilding/microkit"
 edition = "2024"
+license-file = "LICENSE"
+readme = "README.md"
+keywords = ["microservice"]
 
 [workspace.dependencies]
 # Internal
