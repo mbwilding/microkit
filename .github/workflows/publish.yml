@@ -43,11 +43,12 @@ jobs:
 
       - name: Strip Template from Workspace
         run: |
-          sed -i 's/"template\/crates\/\*"\s*//g' Cargo.toml
+          sed -i 's/, "template\/crates\/\*"\s*//g' Cargo.toml
 
       - name: Replace version
         run: |
           sed -i '/^\[workspace\.package\]/,/^\[.*\]/{s/^version = ".*"/version = "${{ steps.determine.outputs.majorMinorPatch }}"/}' Cargo.toml
+          cat Cargo.toml
 
       - name: Publish to crates.io
         env:
