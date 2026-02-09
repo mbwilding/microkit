@@ -45,12 +45,36 @@ enum Commands {
     Db(database::Commands),
 }
 
+fn main() -> Result<()> {
+    let cli = Cli::parse();
+
+    let config = load_config().context(
+        "Ensure your current working directory is in a service and it contains a valid config.yml",
+    )?;
+
+    match cli.command {
+        Commands::New {
+            name,
+            port_offset,
+            description,
+        } => new::new(name, port_offset, description),
+        Commands::Setup => setup::setup(),
+        Commands::All => run::all(),
+        Commands::Run { name } => run::binary(name),
+        Commands::Db(cmd) => match cmd {
+            database::Commands::Entity => database::entity(&config),
+            database::Commands::Migrate { name } => database::migrate(&config, &name),
+            database::Commands::Fresh => database::fresh(&config),
+        },
+    }
+}
+
 fn load_config() -> Result<Config> {
     let config_path = PathBuf::from("config.yml");
     let config_content = match std::fs::read_to_string(&config_path) {
         Ok(content) => content,
         Err(e) => {
-            // For supporting working within the microkit root
+            // For supporting working within the MicroKit repository
             let template_dir = PathBuf::from("template");
             let template_config_path = template_dir.join("config.yml");
             match std::fs::read_to_string(&template_config_path) {
@@ -114,28 +138,4 @@ pub(crate) fn run_command(program: &str, args: &[&str]) -> Result<()> {
     }
 
     Ok(())
-}
-
-fn main() -> Result<()> {
-    let cli = Cli::parse();
-
-    let config = load_config().context(
-        "Ensure your current working directory is in a service and it contains a valid config.yml",
-    )?;
-
-    match cli.command {
-        Commands::New {
-            name,
-            port_offset,
-            description,
-        } => new::new(name, port_offset, description),
-        Commands::Setup => setup::setup(),
-        Commands::All => run::all(),
-        Commands::Run { name } => run::binary(name),
-        Commands::Db(cmd) => match cmd {
-            database::Commands::Entity => database::entity(&config),
-            database::Commands::Migrate { name } => database::migrate(&config, &name),
-            database::Commands::Fresh => database::fresh(&config),
-        },
-    }
 }
