@@ -1,5 +1,6 @@
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
+use include_dir::{Dir, include_dir};
 use microkit::config::Config;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
@@ -7,6 +8,8 @@ use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
 };
+
+static TEMPLATE_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../../template");
 
 #[derive(Parser)]
 #[command(about = "A CLI tool to manage services", long_about = None)]
@@ -21,10 +24,10 @@ enum Commands {
     New {
         /// Name of the service
         name: String,
-        /// Description of the service
-        description: Option<String>,
         /// Port offset, this will offset your ports so you can run multiple services at the same time
         port_offset: u16,
+        /// Description of the service
+        description: Option<String>,
     },
     /// Setup the environment
     Setup,
@@ -124,14 +127,83 @@ fn run_command(program: &str, args: &[&str]) -> Result<()> {
     Ok(())
 }
 
-fn new(name: String, description: Option<String>, port_offset: u16) -> Result<()> {
-    todo!();
+fn new(name: String, port_offset: u16, description: Option<String>) -> Result<()> {
+    println!("Creating new service '{}'", name);
 
-    println!("Creating new service");
+    let target_dir = PathBuf::from(&name);
+    if target_dir.exists() {
+        bail!("Directory '{}' already exists", name);
+    }
 
-    // run_command("dapr", &["init", "--slim"]).context("Failed to initialize dapr")?;
+    std::fs::create_dir(&target_dir)
+        .with_context(|| format!("Failed to create directory '{}'", name))?;
 
-    println!("Created service '{name}' successfully");
+    // Extract all files from the embedded template
+    extract_dir(&TEMPLATE_DIR, &target_dir).context("Failed to extract template files")?;
+
+    // Rename Cargo.toml-disabled to Cargo.toml
+    let cargo_disabled = target_dir.join("Cargo.toml-disabled");
+    let cargo_toml = target_dir.join("Cargo.toml");
+    if cargo_disabled.exists() {
+        std::fs::rename(&cargo_disabled, &cargo_toml)
+            .context("Failed to rename Cargo.toml-disabled to Cargo.toml")?;
+    }
+
+    // Update config.yml with the provided name, description, and port_offset
+    update_config(&target_dir, &name, description, port_offset)?;
+
+    println!("Created service '{}' successfully", name);
+    println!("Next steps:");
+    println!("  cd {}", name);
+    println!("  mk setup");
+
+    Ok(())
+}
+
+fn extract_dir(dir: &Dir, target: &PathBuf) -> Result<()> {
+    for file in dir.files() {
+        let file_path = target.join(file.path());
+
+        if let Some(parent) = file_path.parent() {
+            std::fs::create_dir_all(parent)
+                .with_context(|| format!("Failed to create directory '{}'", parent.display()))?;
+        }
+
+        std::fs::write(&file_path, file.contents())
+            .with_context(|| format!("Failed to write file '{}'", file_path.display()))?;
+    }
+
+    for subdir in dir.dirs() {
+        let subdir_path = target.join(subdir.path());
+        std::fs::create_dir_all(&subdir_path)
+            .with_context(|| format!("Failed to create directory '{}'", subdir_path.display()))?;
+        extract_dir(subdir, target)?;
+    }
+
+    Ok(())
+}
+
+fn update_config(
+    target_dir: &PathBuf,
+    name: &str,
+    description: Option<String>,
+    port_offset: u16,
+) -> Result<()> {
+    let config_path = target_dir.join("config.yml");
+    let config_content =
+        std::fs::read_to_string(&config_path).context("Failed to read config.yml")?;
+
+    let mut config: Config =
+        serde_yaml_ng::from_str(&config_content).context("Failed to parse config.yml")?;
+
+    config.service_name = name.to_string();
+    config.service_desc = description;
+    config.port_offset = Some(port_offset);
+
+    let updated_content =
+        serde_yaml_ng::to_string(&config).context("Failed to serialize config.yml")?;
+    std::fs::write(&config_path, updated_content).context("Failed to write updated config.yml")?;
+
     Ok(())
 }
 
@@ -251,7 +323,7 @@ fn main() -> Result<()> {
             name,
             description,
             port_offset,
-        } => new(name, description, port_offset),
+        } => new(name, port_offset, description),
         Commands::Setup => setup(),
         Commands::All => run_all(),
         Commands::Run { name } => run_binary(name),

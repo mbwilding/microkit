@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "auth")]
 use crate::auth::AuthConfig;
@@ -15,7 +15,7 @@ pub async fn get() -> Result<Config> {
     Ok(config)
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Config {
     pub service_name: String,
     pub service_desc: Option<String>,
@@ -57,7 +57,7 @@ impl Config {
 }
 
 #[cfg(feature = "otel")]
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct OtelConfig {
     pub url: String,
     pub token: String,
@@ -65,7 +65,7 @@ pub struct OtelConfig {
 
 /// Authentication configuration from YAML
 #[cfg(feature = "auth")]
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct AuthConfigYaml {
     /// OIDC issuer URL
     /// For Cognito: https://cognito-idp.{region}.amazonaws.com/{userPoolId}
