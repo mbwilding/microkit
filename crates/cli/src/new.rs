@@ -2,6 +2,7 @@ use anyhow::{Context, Result, bail};
 use include_dir::{Dir, include_dir};
 use microkit::config::Config;
 use std::path::{Path, PathBuf};
+use toml_edit::DocumentMut;
 
 static TEMPLATE_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../../template");
 
@@ -26,6 +27,7 @@ pub fn new(name: String, port_offset: u16, description: Option<String>) -> Resul
     }
 
     update_config(&target_dir, &name, description, port_offset)?;
+    update_kit_reference(&target_dir)?;
 
     println!("Created service '{}' successfully", name);
 
@@ -75,6 +77,32 @@ fn update_config(
     let updated_content =
         serde_yaml_ng::to_string(&config).context("Failed to serialize config.yml")?;
     std::fs::write(&config_path, updated_content).context("Failed to write updated config.yml")?;
+
+    Ok(())
+}
+
+fn update_kit_reference(target_dir: &Path) -> Result<()> {
+    let cargo_toml_path = target_dir.join("Cargo.toml");
+
+    let cargo_toml = std::fs::read_to_string(&cargo_toml_path)?;
+
+    let mut doc = cargo_toml.parse::<DocumentMut>()?;
+
+    if let Some(workspace) = doc["workspace"].as_table_mut()
+        && let Some(deps) = workspace["dependencies"].as_table_mut()
+        && deps.contains_key("microkit")
+    {
+        let version = env!("CARGO_PKG_VERSION");
+
+        if version != "0.0.0" {
+            deps["microkit"]["version"] = toml_edit::value(version);
+        } else {
+            deps["microkit"]["path"] =
+                toml_edit::value(format!("../{}", deps["microkit"]["path"].as_str().unwrap()));
+        }
+    }
+
+    std::fs::write(&cargo_toml_path, doc.to_string())?;
 
     Ok(())
 }

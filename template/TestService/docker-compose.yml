@@ -1,0 +1,56 @@
+networks:
+  development:
+    driver: bridge
+
+# volumes:
+#   pg-data:
+
+services:
+  postgres:
+    image: postgres
+    container_name: postgres
+    restart: always
+    networks:
+      - development
+    ports:
+      - 5432:5432
+    environment:
+      - POSTGRES_PASSWORD=Developer01
+    # volumes:
+    #   - pg-data:/var/lib/postgresql/data
+
+  rabbitmq:
+    image: masstransit/rabbitmq
+    container_name: roger-rabbit
+    restart: always
+    networks:
+      - development
+    ports:
+      - 15672:15672
+      - 5672:5672
+      - 5671:5671
+      - 15671:15671
+
+  # jaeger:
+  #   image: jaegertracing/all-in-one
+  #   container_name: jaeger
+  #   environment:
+  #     - COLLECTOR_OTLP_ENABLED=true
+  #   ports:
+  #     - "16686:16686" # query serve frontend (Jaeger UI)
+  #     - "13133:13133"
+  #     - "4317:4317" # OTLP collector grpc
+
+  # otel-collector:
+  #   image: otel/opentelemetry-collector-contrib
+  #   container_name: otel-collector
+  #   # volumes:
+  #   #   - ./otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml
+  #   ports:
+  #     - "1888:1888"   # pprof extension
+  #     - "8888:8888"   # Prometheus metrics exposed by the Collector
+  #     - "8889:8889"   # Prometheus exporter metrics
+  #     - "13133:13133" # health_check extension
+  #     - "4317:4317"   # OTLP gRPC receiver
+  #     - "4318:4318"   # OTLP http receiver
+  #     - "55679:55679" # zpages extension | http://localhost:55679/debug/tracez
