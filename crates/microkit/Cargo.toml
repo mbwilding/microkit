@@ -1,8 +1,10 @@
 [package]
 name = "microkit"
-version = "0.1.0"
-edition = "2024"
+description = "MicroKit library for creating a service"
 publish = true
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
 
 [dependencies]
 # Workspace External

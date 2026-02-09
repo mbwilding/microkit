@@ -2,6 +2,11 @@
 resolver = "3"
 members = ["crates/*", "template/crates/*"]
 
+[workspace.package]
+version = "0.0.0"
+authors = ["Matthew Wilding <mbwilding@gmail.com>"]
+edition = "2024"
+
 [workspace.dependencies]
 # Internal
 microkit = { path = "crates/microkit" }

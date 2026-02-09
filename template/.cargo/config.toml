@@ -1,2 +1,2 @@
 [alias]
-sk = "run --manifest-path ../Cargo.toml --bin mk --"
+mk = "run --manifest-path ../Cargo.toml --bin mk --"

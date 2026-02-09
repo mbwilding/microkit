@@ -1,8 +1,14 @@
 [package]
-name = "mk"
-version = "0.1.0"
-edition = "2024"
+name = "microkit-cli"
+description = "MicroKit CLI tool for managing your services"
 publish = true
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "mk"
+path = "src/main.rs" # or wherever your main file is
 
 [dependencies]
 # Internal

@@ -1838,7 +1838,7 @@ checksum = "f8ca58f447f06ed17d5fc4043ce1b10dd205e060fb3ce5b979b8ed8e59ff3f79"
 
 [[package]]
 name = "microkit"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1874,6 +1874,20 @@ dependencies = [
  "utoipa-redoc",
  "utoipa-scalar",
  "utoipa-swagger-ui",
+]
+
+[[package]]
+name = "microkit-cli"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "ctrlc",
+ "microkit",
+ "nix 0.31.1",
+ "serde",
+ "serde_yaml_ng",
+ "windows",
 ]
 
 [[package]]
@@ -1919,20 +1933,6 @@ dependencies = [
  "libc",
  "wasi",
  "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "mk"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "ctrlc",
- "microkit",
- "nix 0.31.1",
- "serde",
- "serde_yaml_ng",
- "windows",
 ]
 
 [[package]]
