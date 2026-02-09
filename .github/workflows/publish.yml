@@ -3,6 +3,9 @@ name: Publish to crates.io
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   publish:
     permissions:
@@ -55,14 +58,15 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
-          cargo publish --no-verify --allow-dirty --package microkit
-          cargo publish --no-verify --allow-dirty --package microkit-cli
+          # cargo publish --allow-dirty --package microkit
+          # cargo publish --allow-dirty --package microkit-cli
 
       - name: Git Tag
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         env:
           NAME: "github-actions[bot]"
-          VERSION: "${{ steps.determine.outputs.FullSemVer }}"
+          VERSION: "0.12.0"
+          # VERSION: "${{ steps.determine.outputs.FullSemVer }}"
         run: |
           git config user.name "$NAME"
           git config user.email "$NAME@users.noreply.github.com"
