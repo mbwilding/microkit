@@ -44,15 +44,23 @@ jobs:
       - name: Publish to crates.io
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          VERSION: ${{ steps.determine.outputs.FullSemVer }}
         run: |
+          # MicroKit Libary
           cargo publish --allow-dirty --package microkit
-          cargo publish --allow-dirty --package microkit-cli
+
+          # MicroKit CLI
+          cargo package --allow-dirty --package microkit-cli
+          cd "target/package/microkit-cli-$VERSION"
+          ln -sf ../../../template ../../template
+          cd ../../..
+          cargo publish --allow-dirty --no-verify --package microkit-cli
 
       - name: Git Tag
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         env:
-          NAME: "github-actions[bot]"
-          VERSION: "${{ steps.determine.outputs.FullSemVer }}"
+          NAME: github-actions[bot]
+          VERSION: ${{ steps.determine.outputs.FullSemVer }}
         run: |
           git config user.name "$NAME"
           git config user.email "$NAME@users.noreply.github.com"
