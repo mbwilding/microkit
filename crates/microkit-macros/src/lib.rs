@@ -2,7 +2,7 @@ use proc_macro::TokenStream;
 use quote::quote;
 use std::fs;
 use std::path::PathBuf;
-use syn::{parse_macro_input, Item, ItemFn, LitStr};
+use syn::{Item, ItemFn, LitStr, parse_macro_input};
 
 /// Discovers and registers all endpoint modules in a directory
 ///
@@ -45,36 +45,35 @@ pub fn discover_endpoints(input: TokenStream) -> TokenStream {
                 for entry in entries.flatten() {
                     let path = entry.path();
 
-                    if path.is_file() {
-                        if let Some(file_name) = path.file_name() {
-                            if let Some(file_name_str) = file_name.to_str() {
-                                // Skip mod.rs and only process .rs files
-                                if file_name_str.ends_with(".rs") && file_name_str != "mod.rs" {
-                                    // Extract module name (remove .rs extension)
-                                    let module_name = &file_name_str[..file_name_str.len() - 3];
+                    if path.is_file()
+                        && let Some(file_name) = path.file_name()
+                        && let Some(file_name_str) = file_name.to_str()
+                    {
+                        // Skip mod.rs and only process .rs files
+                        if file_name_str.ends_with(".rs") && file_name_str != "mod.rs" {
+                            // Extract module name (remove .rs extension)
+                            let module_name = &file_name_str[..file_name_str.len() - 3];
 
-                                    // Parse the file to find handler functions
-                                    if let Ok(content) = fs::read_to_string(&path) {
-                                        if let Ok(syntax_tree) = syn::parse_file(&content) {
-                                            let mut handlers = Vec::new();
+                            // Parse the file to find handler functions
+                            if let Ok(content) = fs::read_to_string(&path)
+                                && let Ok(syntax_tree) = syn::parse_file(&content)
+                            {
+                                let mut handlers = Vec::new();
 
-                                            for item in syntax_tree.items {
-                                                if let Item::Fn(func) = item {
-                                                    // Check if function has #[utoipa::path] attribute
-                                                    if has_utoipa_path_attr(&func) {
-                                                        handlers.push(func.sig.ident.to_string());
-                                                    }
-                                                }
-                                            }
-
-                                            if !handlers.is_empty() {
-                                                endpoints.push(EndpointInfo {
-                                                    module_name: module_name.to_string(),
-                                                    handlers,
-                                                });
-                                            }
+                                for item in syntax_tree.items {
+                                    if let Item::Fn(func) = item {
+                                        // Check if function has #[utoipa::path] attribute
+                                        if has_utoipa_path_attr(&func) {
+                                            handlers.push(func.sig.ident.to_string());
                                         }
                                     }
+                                }
+
+                                if !handlers.is_empty() {
+                                    endpoints.push(EndpointInfo {
+                                        module_name: module_name.to_string(),
+                                        handlers,
+                                    });
                                 }
                             }
                         }
@@ -186,9 +185,9 @@ fn has_utoipa_path_attr(func: &ItemFn) -> bool {
 #[proc_macro]
 pub fn register_endpoints(input: TokenStream) -> TokenStream {
     use syn::{
+        Ident, Token,
         parse::{Parse, ParseStream},
         punctuated::Punctuated,
-        Ident, Token,
     };
 
     struct RegisterEndpointsInput {

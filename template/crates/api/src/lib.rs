@@ -4,7 +4,7 @@ use microkit::{MicroKit, ServicePort};
 
 #[tokio::main]
 pub async fn start() -> anyhow::Result<()> {
-    let mut service = MicroKit::builder()
+    MicroKit::builder()
         .await?
         .with_logging()
         .with_database()
@@ -13,12 +13,10 @@ pub async fn start() -> anyhow::Result<()> {
         .with_auth()
         .with_health_checks()
         .with_otel()
+        .with_migrations::<migrations::Migrator>()
+        .with_endpoints(endpoints::init_endpoints)
         .build()
-        .await?;
-
-    service.run_migrations::<migrations::Migrator>().await?;
-
-    endpoints::init_endpoints(&mut service)?;
-
-    service.start(ServicePort::Api).await
+        .await?
+        .start(ServicePort::Api)
+        .await
 }
