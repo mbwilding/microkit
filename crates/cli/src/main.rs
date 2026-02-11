@@ -122,7 +122,7 @@ pub(crate) fn run_command(program: &str, args: &[&str]) -> Result<()> {
     let interrupted = Arc::new(AtomicBool::new(false));
     let interrupted_clone = interrupted.clone();
 
-    ctrlc::set_handler(move || {
+    match ctrlc::set_handler(move || {
         interrupted_clone.store(true, Ordering::SeqCst);
 
         #[cfg(unix)]
@@ -139,8 +139,15 @@ pub(crate) fn run_command(program: &str, args: &[&str]) -> Result<()> {
             use windows::Win32::System::Console::GenerateConsoleCtrlEvent;
             let _ = unsafe { GenerateConsoleCtrlEvent(CTRL_C_EVENT, child_id) };
         }
-    })
-    .context("Failed to set Ctrl+C handler")?;
+    }) {
+        Ok(()) => {}
+        Err(e) => {
+            if e.to_string().contains("signal handler already registered") {
+                return Ok(());
+            }
+            return Err(e).context("Failed to set Ctrl+C handler");
+        }
+    }
 
     let output = child.wait()?;
 
