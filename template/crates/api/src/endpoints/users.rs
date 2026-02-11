@@ -9,6 +9,7 @@ use utoipa::ToSchema;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 const GROUP: &str = "Users";
+const PATH: &str = "/v1/users";
 
 pub fn api(db: &Option<DatabaseConnection>) -> Result<OpenApiRouter> {
     if let Some(db) = db {
@@ -35,7 +36,7 @@ pub struct UserResponse {
 #[tracing::instrument(skip(db))]
 #[utoipa::path(
     get,
-    path = "/v1/users",
+    path = PATH,
     tag = GROUP,
     responses(
         (status = 200, description = "List of users", body = [UserResponse])
@@ -58,9 +59,9 @@ async fn get_users(State(db): State<DatabaseConnection>) -> Json<Vec<UserRespons
 #[tracing::instrument(skip(auth_user, db))]
 #[utoipa::path(
     post,
-    path = "/v1/users",
-    request_body = UserRequest,
+    path = PATH,
     tag = GROUP,
+    request_body = UserRequest,
     responses(
         (status = 200, description = "User inserted", body = UserResponse),
         (status = 401, description = "Unauthorized - Invalid or missing bearer token")

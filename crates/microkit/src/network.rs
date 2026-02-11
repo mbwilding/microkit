@@ -14,16 +14,21 @@ pub async fn network(
     };
     let port = match port_offset {
         Some(port_offset) => port_base.get_with_offset(port_offset),
-        None => 8080,
+        // This is used when hosting remotely for a predictable port
+        None => 80,
     };
     let mut addrs = lookup_host((host, port)).await?;
-    let address = match addrs.next() {
-        Some(addr) => addr,
-        None => return Err(anyhow!("Failed to look up host: {}:{}", host, port)),
-    };
+    let address = addrs
+        .find(|addr| addr.is_ipv4())
+        .or_else(|| {
+            let mut addrs = addrs;
+            addrs.next()
+        })
+        .ok_or_else(|| anyhow!("Failed to look up host: {}:{}", host, port))?;
     let listener = TcpListener::bind(address).await?;
     let local_address = listener.local_addr()?;
-    log::info!("Listening on http://{}", local_address);
+
+    log::info!("{}: http://{}", port_base, local_address);
 
     Ok((local_address, listener))
 }

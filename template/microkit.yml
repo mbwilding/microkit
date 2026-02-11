@@ -6,3 +6,6 @@ database_drop: false
 port_offset: 0
 host: localhost
 log_level: info
+otel:
+  url: http://localhost:4317
+  token: null
