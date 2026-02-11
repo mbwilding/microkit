@@ -1,7 +1,6 @@
 [package]
 name = "api"
 version = "0.1.0"
-authors = ["Matthew Wilding <mbwilding@gmail.com>"]
 edition = "2024"
 publish = false
 
