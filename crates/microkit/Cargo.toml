@@ -11,6 +11,8 @@ readme.workspace = true
 keywords.workspace = true
 
 [dependencies]
+# Workspace Internal
+microkit-macros = { workspace = true }
 # Workspace External
 anyhow = { workspace = true }
 log = { workspace = true }

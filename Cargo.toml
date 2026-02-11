@@ -14,6 +14,7 @@ keywords = ["microservice"]
 [workspace.dependencies]
 # Internal
 microkit = { path = "crates/microkit" }
+microkit-macros = { path = "crates/microkit-macros" }
 entities = { path = "template/crates/entities" }
 migrations = { path = "template/crates/migrations" }
 api = { path = "template/crates/api" }

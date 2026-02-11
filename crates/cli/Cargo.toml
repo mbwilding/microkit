@@ -15,7 +15,7 @@ name = "mk"
 path = "src/main.rs" # or wherever your main file is
 
 [dependencies]
-# Internal
+# Workspace Internal
 microkit = { workspace = true }
 # Workspace External
 anyhow = { workspace = true }

@@ -1,4 +1,3 @@
-use anyhow::{Result, bail};
 use axum::{Json, extract::State};
 use entities::users::{ActiveModel, Entity, Model};
 use microkit::auth::AuthenticatedUser;
@@ -6,20 +5,9 @@ use sea_orm::Set;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
-use utoipa_axum::{router::OpenApiRouter, routes};
 
 const GROUP: &str = "Users";
 const PATH: &str = "/v1/users";
-
-pub fn api(db: &Option<DatabaseConnection>) -> Result<OpenApiRouter> {
-    if let Some(db) = db {
-        return Ok(OpenApiRouter::new()
-            .routes(routes!(create_user, get_users))
-            .with_state(db.clone()));
-    }
-
-    bail!("Cannot add routes due to database not being initialized")
-}
 
 #[derive(Debug, Deserialize, Serialize, ToSchema)]
 pub struct UserRequest {
@@ -42,7 +30,7 @@ pub struct UserResponse {
         (status = 200, description = "List of users", body = [UserResponse])
     )
 )]
-async fn get_users(State(db): State<DatabaseConnection>) -> Json<Vec<UserResponse>> {
+pub async fn get_users(State(db): State<DatabaseConnection>) -> Json<Vec<UserResponse>> {
     let names = Entity::find().all(&db).await.unwrap();
     let responses = names
         .into_iter()
@@ -72,7 +60,7 @@ async fn get_users(State(db): State<DatabaseConnection>) -> Json<Vec<UserRespons
         ("oidc" = ["openid", "email", "profile"])
     )
 )]
-async fn create_user(
+pub async fn create_user(
     auth_user: AuthenticatedUser,
     State(db): State<DatabaseConnection>,
     Json(payload): Json<UserRequest>,
