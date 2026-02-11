@@ -24,6 +24,7 @@ pub mod auth;
 
 #[cfg(feature = "database")]
 pub mod database;
+
 #[cfg(feature = "database")]
 use sea_orm::DatabaseConnection;
 #[cfg(feature = "database")]
@@ -34,6 +35,7 @@ use tracing_subscriber::{EnvFilter, fmt};
 
 use anyhow::{Result, bail};
 use config::Config;
+use std::fmt::Display;
 use tower_http::cors::CorsLayer;
 use utoipa_axum::router::OpenApiRouter;
 
@@ -56,6 +58,17 @@ impl ServicePort {
 
     pub fn get_with_offset(&self, port_base: u16) -> u16 {
         Self::get(self) + port_base
+    }
+}
+
+impl Display for ServicePort {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ServicePort::Client => write!(f, "client"),
+            ServicePort::Api => write!(f, "api"),
+            ServicePort::Consumer => write!(f, "consumer"),
+            ServicePort::Other(_) => write!(f, "other"),
+        }
     }
 }
 
@@ -246,7 +259,7 @@ impl MicroKitBuilder {
     pub async fn build(self) -> Result<MicroKit> {
         #[cfg(feature = "otel")]
         let tracer_provider = if self.enable_otel {
-            otel::init_providers(&self.config.service_name, &self.config.otel)
+            otel::init_providers(&self.config.service_name, &self.config.otel)?
         } else {
             None
         };

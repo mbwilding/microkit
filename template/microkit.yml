@@ -4,7 +4,7 @@ database_name: awesomeservice
 database_url: postgres://postgres:Developer01@localhost
 database_drop: false
 port_offset: 0
-host: null
+host: localhost
 log_level: info
 otel:
   url: http://localhost:4317

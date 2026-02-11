@@ -1,4 +1,5 @@
 use crate::config::OtelConfig;
+use anyhow::{Context, Result, bail};
 use axum::Router;
 use axum_otel::{AxumOtelOnFailure, AxumOtelOnResponse, AxumOtelSpanCreator};
 use axum_otel_metrics::HttpMetricsLayerBuilder;
@@ -9,26 +10,22 @@ use opentelemetry_sdk::logs::SdkLoggerProvider;
 use opentelemetry_sdk::metrics::{PeriodicReader, SdkMeterProvider};
 use opentelemetry_sdk::trace::SdkTracerProvider;
 use opentelemetry_sdk::{Resource, propagation::TraceContextPropagator};
-use std::collections::HashMap;
 use tower_http::trace::TraceLayer;
 
+// TODO: Get token hooked up to OTEL
 pub fn init_providers(
     service_name: &str,
     config: &Option<OtelConfig>,
-) -> Option<SdkTracerProvider> {
+) -> Result<Option<SdkTracerProvider>> {
     if config.is_none() {
-        log::warn!("OTEL init_providers called but no config found");
-        return None;
+        bail!("otel: init_providers called but no config found");
     }
 
     let url = match config.as_ref() {
         Some(cfg) => &cfg.url,
-        None => return None,
+        None => bail!("otel: init_providers called but no otel.url was set"),
     };
 
-    // TODO: Get token hooked up to OTEL
-
-    let _map: HashMap<String, String> = HashMap::new();
     let resource = Resource::builder()
         .with_service_name(service_name.to_string())
         .build();
@@ -39,7 +36,7 @@ pub fn init_providers(
         .with_tonic()
         .with_endpoint(url.clone())
         .build()
-        .expect("Failed to create tracer exporter");
+        .context("Failed to create tracer exporter")?;
 
     let tracer_provider = SdkTracerProvider::builder()
         .with_resource(resource.clone())
@@ -52,7 +49,7 @@ pub fn init_providers(
         .with_tonic()
         .with_endpoint(url.clone())
         .build()
-        .expect("Failed to create metrics exporter");
+        .context("Failed to create metrics exporter")?;
 
     let meter_provider = SdkMeterProvider::builder()
         .with_reader(PeriodicReader::builder(metrics_exporter).build())
@@ -64,17 +61,17 @@ pub fn init_providers(
         .with_tonic()
         .with_endpoint(url.clone())
         .build()
-        .expect("Failed to create log exporter");
+        .context("Failed to create log exporter")?;
     let logger_provider = SdkLoggerProvider::builder()
         .with_batch_exporter(logger_exporter)
         .with_resource(resource.clone())
         .build();
     let otel_log_appender = OpenTelemetryLogBridge::new(&logger_provider);
 
-    log::set_boxed_logger(Box::new(otel_log_appender)).expect("Failed to set logger");
+    log::set_boxed_logger(Box::new(otel_log_appender)).context("Failed to set logger")?;
     log::set_max_level(log::LevelFilter::Info);
 
-    Some(tracer_provider)
+    Ok(Some(tracer_provider))
 }
 
 pub fn apply_layers(router: Router) -> Router {
@@ -88,9 +85,4 @@ pub fn apply_layers(router: Router) -> Router {
                 .on_failure(AxumOtelOnFailure::new()),
         )
         .layer(metrics)
-}
-
-pub fn init(router: Router, service_name: &str, config: &Option<OtelConfig>) -> Router {
-    init_providers(service_name, config);
-    apply_layers(router)
 }

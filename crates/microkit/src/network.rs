@@ -27,7 +27,8 @@ pub async fn network(
         .ok_or_else(|| anyhow!("Failed to look up host: {}:{}", host, port))?;
     let listener = TcpListener::bind(address).await?;
     let local_address = listener.local_addr()?;
-    log::info!("Listening on http://{}", local_address);
+
+    log::info!("{}: http://{}", port_base, local_address);
 
     Ok((local_address, listener))
 }
