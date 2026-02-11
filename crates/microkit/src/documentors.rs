@@ -1,7 +1,5 @@
-use std::net::SocketAddr;
-
 use axum::Router;
-use tracing::info;
+use std::net::SocketAddr;
 use utoipa::openapi::OpenApi;
 
 #[cfg(feature = "auth")]
@@ -81,7 +79,7 @@ pub fn documentors(
     // Documentation viewers
     for documentor in documentors {
         let name = &documentor[1..];
-        info!("{}: http://{}/{}", name, local_addr, name);
+        log::info!("{}: http://{}/{}", name, local_addr, name);
     }
 
     router
@@ -133,7 +131,7 @@ pub fn documentors(router: Router, api: &OpenApi, local_addr: &SocketAddr) -> Ro
     // Documentation viewers
     for documentor in documentors {
         let name = &documentor[1..];
-        info!("{}: http://{}/{}", name, local_addr, name);
+        log::info!("{}: http://{}/{}", name, local_addr, name);
     }
 
     router

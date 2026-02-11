@@ -14,7 +14,8 @@ pub async fn network(
     };
     let port = match port_offset {
         Some(port_offset) => port_base.get_with_offset(port_offset),
-        None => 8080,
+        // This is used when hosting remotely for a predictable port
+        None => 80,
     };
     let mut addrs = lookup_host((host, port)).await?;
     let address = addrs

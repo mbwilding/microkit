@@ -9,7 +9,6 @@ pub struct Dapr {
 impl Dapr {
     pub async fn new() -> Result<Self> {
         let endpoint = "https://127.0.0.1".to_string();
-        log::debug!("Connecting to Dapr at: {}", endpoint);
         let client = match dapr::Client::<TonicClient>::connect(endpoint).await {
             Ok(client) => client,
             Err(e) => {
