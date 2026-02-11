@@ -85,14 +85,42 @@ pub struct MicroKit {
     pub auth: Option<auth::AuthConfig>,
 }
 
+#[cfg(feature = "database")]
+trait MigratorRunner: Send + Sync {
+    fn run<'a>(
+        &'a self,
+        db: &'a DatabaseConnection,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<()>> + Send + 'a>>;
+}
+
+#[cfg(feature = "database")]
+struct TypedMigrator<M: MigratorTrait>(std::marker::PhantomData<M>);
+
+#[cfg(feature = "database")]
+impl<M: MigratorTrait + Send + Sync> MigratorRunner for TypedMigrator<M> {
+    fn run<'a>(
+        &'a self,
+        db: &'a DatabaseConnection,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<()>> + Send + 'a>> {
+        Box::pin(async move {
+            M::up(db, None).await?;
+            Ok(())
+        })
+    }
+}
+
 pub struct MicroKitBuilder {
     config: Config,
     enable_router: bool,
     routes: Vec<OpenApiRouter>,
+    #[allow(clippy::type_complexity)]
+    endpoint_initializer: Option<Box<dyn FnOnce(&mut MicroKit) -> Result<()> + Send>>,
     #[cfg(feature = "tracing")]
     enable_logging: bool,
     #[cfg(feature = "database")]
     enable_database: bool,
+    #[cfg(feature = "database")]
+    migrator: Option<Box<dyn MigratorRunner>>,
     #[cfg(feature = "otel")]
     enable_otel: bool,
     #[cfg(feature = "health-checks")]
@@ -187,10 +215,13 @@ impl MicroKitBuilder {
             config,
             enable_router: false,
             routes: Vec::new(),
+            endpoint_initializer: None,
             #[cfg(feature = "tracing")]
             enable_logging: false,
             #[cfg(feature = "database")]
             enable_database: false,
+            #[cfg(feature = "database")]
+            migrator: None,
             #[cfg(feature = "otel")]
             enable_otel: false,
             #[cfg(feature = "health-checks")]
@@ -254,6 +285,23 @@ impl MicroKitBuilder {
     #[cfg(feature = "auth")]
     pub fn with_auth(mut self) -> Self {
         self.enable_auth = true;
+        self
+    }
+
+    /// Configure database migrations to run during build
+    #[cfg(feature = "database")]
+    pub fn with_migrations<M: MigratorTrait + Send + Sync + 'static>(mut self) -> Self {
+        self.enable_database = true;
+        self.migrator = Some(Box::new(TypedMigrator::<M>(std::marker::PhantomData)));
+        self
+    }
+
+    /// Configure endpoint initialization function to run during build
+    pub fn with_endpoints<F>(mut self, f: F) -> Self
+    where
+        F: FnOnce(&mut MicroKit) -> Result<()> + Send + 'static,
+    {
+        self.endpoint_initializer = Some(Box::new(f));
         self
     }
 
@@ -386,7 +434,7 @@ impl MicroKitBuilder {
             None
         };
 
-        Ok(MicroKit {
+        let mut service = MicroKit {
             config: self.config,
             router,
             #[cfg(feature = "database")]
@@ -395,6 +443,21 @@ impl MicroKitBuilder {
             dapr,
             #[cfg(feature = "auth")]
             auth,
-        })
+        };
+
+        // Run migrations if configured
+        #[cfg(feature = "database")]
+        if let Some(migrator) = self.migrator
+            && let Some(ref db) = service.database
+        {
+            migrator.run(db).await?;
+        }
+
+        // Initialize endpoints if configured
+        if let Some(initializer) = self.endpoint_initializer {
+            initializer(&mut service)?;
+        }
+
+        Ok(service)
     }
 }
