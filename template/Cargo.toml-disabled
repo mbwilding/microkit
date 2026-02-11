@@ -12,6 +12,7 @@ api = { path = "crates/api" }
 # External
 anyhow = "1.0"
 axum = { version = "0.8", features = ["macros"] }
+log = { version = "0.4", features = ["std"] }
 sea-orm = { version = "2.0.0-rc.31", features = [
     "debug-print",
     "runtime-tokio-native-tls",

@@ -150,6 +150,13 @@ impl MicroKit {
 
             let router = router.layer(CorsLayer::very_permissive());
 
+            #[cfg(feature = "otel")]
+            let router = if self.config.otel.is_some() {
+                otel::apply_layers(router)
+            } else {
+                router
+            };
+
             axum::serve(listener, router.into_make_service()).await?;
         } else {
             bail!("No router");
@@ -237,6 +244,13 @@ impl MicroKitBuilder {
 
     /// Build the MicroKit instance with all configured features
     pub async fn build(self) -> Result<MicroKit> {
+        #[cfg(feature = "otel")]
+        let tracer_provider = if self.enable_otel {
+            otel::init_providers(&self.config.service_name, &self.config.otel)
+        } else {
+            None
+        };
+
         #[cfg(feature = "tracing")]
         if self.enable_logging {
             let filter = if let Some(log_level) = &self.config.log_level {
@@ -245,12 +259,31 @@ impl MicroKitBuilder {
                 EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"))
             };
 
-            let subscriber = fmt().with_env_filter(filter).finish();
+            #[cfg(all(feature = "otel", feature = "tracing"))]
+            if self.enable_otel
+                && let Some(tracer_provider) = tracer_provider
+            {
+                use opentelemetry::trace::TracerProvider;
+                use tracing_opentelemetry::OpenTelemetryLayer;
+                use tracing_subscriber::Registry;
+                use tracing_subscriber::layer::SubscriberExt;
 
-            if let Err(e) = tracing::subscriber::set_global_default(subscriber) {
-                log::warn!("This will show when running in all mode ({})", e);
+                let tracer = tracer_provider.tracer("microkit");
+                let subscriber = Registry::default()
+                    .with(filter)
+                    .with(fmt::layer())
+                    .with(OpenTelemetryLayer::new(tracer));
+
+                let _ = tracing::subscriber::set_global_default(subscriber);
             } else {
-                log::info!("logging initialized");
+                let subscriber = fmt().with_env_filter(filter).finish();
+                let _ = tracing::subscriber::set_global_default(subscriber);
+            }
+
+            #[cfg(not(all(feature = "otel", feature = "tracing")))]
+            {
+                let subscriber = fmt().with_env_filter(filter).finish();
+                let _ = tracing::subscriber::set_global_default(subscriber);
             }
         }
 
@@ -273,7 +306,6 @@ impl MicroKitBuilder {
         let mut router = if self.enable_router {
             #[cfg(feature = "auth")]
             {
-                // If auth config is available, create router with auth
                 if let Some(auth_yaml) = &self.config.auth {
                     Some(router::generate_router_with_auth(
                         &self.config.service_name,
@@ -305,19 +337,6 @@ impl MicroKitBuilder {
                     None => router = Some(route),
                 }
             }
-        }
-
-        // Initialize OpenTelemetry if enabled
-        #[cfg(feature = "otel")]
-        if self.enable_otel
-            && let Some(ref mut r) = router
-        {
-            let router_otel = otel::init(
-                r.clone().split_for_parts().0,
-                &self.config.service_name,
-                &self.config.otel,
-            );
-            router = Some(r.clone().merge(router_otel.into()));
         }
 
         // Initialize health checks if enabled

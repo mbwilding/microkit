@@ -17,10 +17,13 @@ pub async fn network(
         None => 8080,
     };
     let mut addrs = lookup_host((host, port)).await?;
-    let address = match addrs.next() {
-        Some(addr) => addr,
-        None => return Err(anyhow!("Failed to look up host: {}:{}", host, port)),
-    };
+    let address = addrs
+        .find(|addr| addr.is_ipv4())
+        .or_else(|| {
+            let mut addrs = addrs;
+            addrs.next()
+        })
+        .ok_or_else(|| anyhow!("Failed to look up host: {}:{}", host, port))?;
     let listener = TcpListener::bind(address).await?;
     let local_address = listener.local_addr()?;
     log::info!("Listening on http://{}", local_address);

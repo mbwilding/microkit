@@ -29,8 +29,8 @@ services:
     ports:
       - 15672:15672 # UI
       - 5672:5672   # AMQP
-      - 5671:5671   # AMQP over TLS
-      - 15671:15671 # Management over TLS
+      - 5671:5671   # AMQP TLS
+      - 15671:15671 # Management TLS
 
   aspire-dashboard:
     image: mcr.microsoft.com/dotnet/aspire-dashboard:latest
@@ -39,8 +39,8 @@ services:
     networks:
       - development
     ports:
-      - "18888:18888"  # UI
-      - "4317:18889"   # OTLP gRPC endpoint
-      - "4318:18890"   # OTLP HTTP endpoint
+      - "18888:18888" # UI
+      - "4317:18889"  # OTLP gRPC
+      - "4318:18890"  # OTLP HTTP
     environment:
       - DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true

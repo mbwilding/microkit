@@ -13,6 +13,7 @@ pub async fn start() -> anyhow::Result<()> {
         .with_dapr()
         .with_auth()
         .with_health_checks()
+        .with_otel()
         .build()
         .await?;
 
