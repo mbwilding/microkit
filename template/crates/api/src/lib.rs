@@ -1,6 +1,5 @@
 mod endpoints;
 
-use endpoints::*;
 use microkit::{MicroKit, ServicePort};
 
 #[tokio::main]
@@ -19,7 +18,7 @@ pub async fn start() -> anyhow::Result<()> {
 
     service.run_migrations::<migrations::Migrator>().await?;
 
-    service.add_route(users::api(&service.database)?);
+    endpoints::init_endpoints(&mut service)?;
 
     service.start(ServicePort::Api).await
 }

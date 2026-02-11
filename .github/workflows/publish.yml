@@ -44,12 +44,15 @@ jobs:
           sed -i '/^\[workspace\.package\]/,/^\[.*\]/{s/^version = ".*"/version = "${{ steps.determine.outputs.FullSemVer }}"/}' Cargo.toml
           # CLI
           sed -i '/microkit = { workspace = true }/s//microkit = "${{ steps.determine.outputs.FullSemVer }}"/' crates/cli/Cargo.toml
+          # MicroKit
+          sed -i '/microkit-macros = { workspace = true }/s//microkit-macros = "${{ steps.determine.outputs.FullSemVer }}"/' crates/microkit/Cargo.toml
 
       - name: Publish to crates.io
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
           VERSION: ${{ steps.determine.outputs.FullSemVer }}
         run: |
+          cargo publish --allow-dirty --package microkit-macros
           cargo publish --allow-dirty --package microkit
           cargo publish --allow-dirty --package microkit-cli
 
