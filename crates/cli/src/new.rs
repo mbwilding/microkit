@@ -170,20 +170,21 @@ fn update_config(
     description: Option<String>,
     port_offset: u16,
 ) -> Result<()> {
-    let config_path = target_dir.join("config.yml");
+    let config_path = target_dir.join("microkit.yml");
     let config_content =
-        std::fs::read_to_string(&config_path).context("Failed to read config.yml")?;
+        std::fs::read_to_string(&config_path).context("Failed to read microkit.yml")?;
 
     let mut config: Config =
-        serde_yaml_ng::from_str(&config_content).context("Failed to parse config.yml")?;
+        serde_yaml_ng::from_str(&config_content).context("Failed to parse microkit.yml")?;
 
     config.service_name = name.to_string();
     config.service_desc = description;
     config.port_offset = Some(port_offset);
 
     let updated_content =
-        serde_yaml_ng::to_string(&config).context("Failed to serialize config.yml")?;
-    std::fs::write(&config_path, updated_content).context("Failed to write updated config.yml")?;
+        serde_yaml_ng::to_string(&config).context("Failed to serialize microkit.yml")?;
+    std::fs::write(&config_path, updated_content)
+        .context("Failed to write updated microkit.yml")?;
 
     Ok(())
 }

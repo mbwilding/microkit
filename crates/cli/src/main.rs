@@ -3,10 +3,10 @@ pub(crate) mod new;
 pub(crate) mod run;
 pub(crate) mod setup;
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
 use microkit::config::Config;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::{
     Arc,
@@ -58,13 +58,21 @@ async fn main() -> Result<()> {
             description,
             branch,
         } => new::new(name, port_offset, description, branch).await,
-        Commands::Setup => setup::setup(),
-        Commands::All => run::all(),
-        Commands::Run { name } => run::binary(name),
+        Commands::Setup => {
+            cwd_check_set()?;
+            setup::setup()
+        }
+        Commands::All => {
+            cwd_check_set()?;
+            run::all()
+        }
+        Commands::Run { name } => {
+            cwd_check_set()?;
+            run::binary(name)
+        }
         Commands::Db(cmd) => {
-            let config = load_config().context(
-                "Ensure your current working directory is in a service and it contains a valid config.yml",
-            )?;
+            cwd_check_set()?;
+            let config = load_config()?;
             match cmd {
                 database::Commands::Entity => database::entity(&config),
                 database::Commands::Migrate { name } => database::migrate(&config, &name),
@@ -74,27 +82,28 @@ async fn main() -> Result<()> {
     }
 }
 
-fn load_config() -> Result<Config> {
-    let config_path = PathBuf::from("config.yml");
-    let config_content = match std::fs::read_to_string(&config_path) {
-        Ok(content) => content,
-        Err(e) => {
-            // For supporting working within the MicroKit repository
-            let template_dir = PathBuf::from("template");
-            let template_config_path = template_dir.join("config.yml");
-            match std::fs::read_to_string(&template_config_path) {
-                Ok(content) => {
-                    let _ = std::env::set_current_dir(&template_dir);
-                    content
-                }
-                Err(_) => return Err(e.into()),
+fn cwd_check_set() -> Result<()> {
+    for dir in [".", "template"] {
+        let config_path = Path::new(dir).join("microkit.yml");
+        if config_path.exists() {
+            if dir != "." {
+                std::env::set_current_dir(dir)?;
             }
+            return Ok(());
         }
-    };
+    }
 
+    bail!(
+        "Ensure your current working directory is in a service and it contains a valid microkit.yml"
+    );
+}
+
+fn load_config() -> Result<Config> {
+    let config_path = PathBuf::from("microkit.yml");
+    let config_content =
+        std::fs::read_to_string(&config_path).context("Failed to read microkit.yml")?;
     let config: Config =
-        serde_yaml_ng::from_str(&config_content).context("Failed to parse config.yml")?;
-
+        serde_yaml_ng::from_str(&config_content).context("Failed to parse microkit.yml")?;
     Ok(config)
 }
 

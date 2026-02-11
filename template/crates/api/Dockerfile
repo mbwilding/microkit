@@ -11,6 +11,6 @@ RUN mv ${PREFIX}/target/release/api api
 FROM gcr.io/distroless/cc
 ARG PREFIX=.
 WORKDIR /app
-# COPY ${PREFIX}/config.yml .
+# COPY ${PREFIX}/microkit.yml .
 COPY --from=builder /app/api /app/api
 CMD ["/app/api"]

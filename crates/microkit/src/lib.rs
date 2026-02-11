@@ -345,7 +345,7 @@ impl MicroKitBuilder {
                 log::info!("Authentication initialized");
                 Some(auth)
             } else {
-                log::warn!("Authentication feature enabled but no auth config in config.yml");
+                log::warn!("Authentication feature enabled but no auth config in microkit.yml");
                 None
             }
         } else {

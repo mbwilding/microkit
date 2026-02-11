@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::auth::AuthConfig;
 
 pub async fn get() -> Result<Config> {
-    let file = "config.yml";
+    let file = "microkit.yml";
     let contents = tokio::fs::read_to_string(&file).await.context(format!(
         "Could not find '{}' in current working directory",
         &file
