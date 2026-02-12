@@ -13,6 +13,7 @@ migrations = { workspace = true }
 # Workspace External
 anyhow = { workspace = true }
 axum = { workspace = true }
+log = { workspace = true }
 sea-orm = { workspace = true }
 serde = { workspace = true }
 tokio = { workspace = true }
