@@ -39,7 +39,8 @@ struct CrateInfo {
     max_version: String,
 }
 
-pub async fn exec(args: NewArgs) -> Result<()> {
+pub async fn exec(mut args: NewArgs) -> Result<()> {
+    args.name = args.name.trim().to_string();
     exec_impl(args).await
 }
 
@@ -292,7 +293,6 @@ fn update_config(
     let mut config: Config =
         serde_yaml_ng::from_str(&config_content).context("Failed to parse microkit.yml")?;
 
-    let name = name.trim();
     config.service_name = name.to_string();
     config.service_desc = description;
     config.database_name = Some(
