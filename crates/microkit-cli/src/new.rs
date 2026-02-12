@@ -15,7 +15,7 @@ use zip::ZipArchive;
 pub(crate) struct NewArgs {
     /// Name of the service
     name: String,
-    /// Description of the service
+    /// Description of the service: Awesome Service
     #[arg(short, long)]
     description: Option<String>,
     /// Port offset, this will offset your ports so you can run multiple services at the same time
@@ -292,8 +292,15 @@ fn update_config(
     let mut config: Config =
         serde_yaml_ng::from_str(&config_content).context("Failed to parse microkit.yml")?;
 
+    let name = name.trim();
     config.service_name = name.to_string();
     config.service_desc = description;
+    config.database_name = Some(
+        name.chars()
+            .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+            .collect::<String>()
+            .to_lowercase(),
+    );
     config.port_offset = Some(port_offset);
 
     let updated_content =

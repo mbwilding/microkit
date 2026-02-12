@@ -4,7 +4,7 @@ use entities::users::ActiveModel;
 use sea_orm::entity::prelude::*;
 
 const GROUP: &str = "Users (CONSUMER)";
-const PATH: &str = "/event/v1/users";
+const PATH: &str = "/consumer/v1/users";
 
 /// Create user
 #[tracing::instrument(skip(db))]
