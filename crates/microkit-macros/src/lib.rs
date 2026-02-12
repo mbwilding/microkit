@@ -135,7 +135,6 @@ pub fn discover_endpoints(input: TokenStream) -> TokenStream {
     fn generate_module_decls(
         parent_path: &[String],
         module_tree: &BTreeMap<Vec<String>, BTreeSet<String>>,
-        endpoints: &[EndpointInfo],
     ) -> Vec<proc_macro2::TokenStream> {
         let mut decls = Vec::new();
 
@@ -148,7 +147,7 @@ pub fn discover_endpoints(input: TokenStream) -> TokenStream {
                 let has_children = module_tree.contains_key(&child_path);
 
                 if has_children {
-                    let nested_decls = generate_module_decls(&child_path, module_tree, endpoints);
+                    let nested_decls = generate_module_decls(&child_path, module_tree);
                     decls.push(quote! {
                         pub mod #child_ident {
                             #(#nested_decls)*
@@ -165,7 +164,7 @@ pub fn discover_endpoints(input: TokenStream) -> TokenStream {
         decls
     }
 
-    let module_decls = generate_module_decls(&[], &module_tree, &endpoints);
+    let module_decls = generate_module_decls(&[], &module_tree);
 
     let register_calls: Vec<_> = endpoints
         .iter()
