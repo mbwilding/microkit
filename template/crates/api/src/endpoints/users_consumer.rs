@@ -1,20 +1,10 @@
 use axum::{Json, extract::State, http::StatusCode};
 use contracts::UserCreatedEvent;
 use entities::users::ActiveModel;
-use microkit::prelude::*;
 use sea_orm::entity::prelude::*;
-use serde::Serialize;
-use utoipa::ToSchema;
 
 const GROUP: &str = "Users (CONSUMER)";
-const PATH: &str = "/v1/event/users";
-
-/// User response
-#[event_contract]
-#[derive(Debug, Serialize, ToSchema)]
-pub struct DaprUserResponse {
-    pub name: String,
-}
+const PATH: &str = "/event/v1/users";
 
 /// Create user
 #[tracing::instrument(skip(db))]
@@ -24,15 +14,15 @@ pub struct DaprUserResponse {
     tag = GROUP,
     request_body = UserCreatedEvent,
     responses(
-        (status = 200, description = "User created from event", body = DaprUserResponse),
+        (status = 200, description = "User created"),
         (status = 400, description = "Bad request - missing required fields"),
         (status = 409, description = "Conflict - user with this creation_system/creation_key already exists")
     )
 )]
-pub async fn create_user_from_event(
+pub async fn consumer_create_user(
     State(db): State<DatabaseConnection>,
     Json(event): Json<UserCreatedEvent>,
-) -> Result<Json<DaprUserResponse>, StatusCode> {
+) -> Result<(), StatusCode> {
     if event.creation_system.is_empty() || event.creation_key.is_empty() {
         tracing::error!("Missing required creation tracking fields");
         return Err(StatusCode::BAD_REQUEST);
@@ -63,10 +53,5 @@ pub async fn create_user_from_event(
         "User created successfully from event"
     );
 
-    Ok(Json(DaprUserResponse {
-        creation_system: inserted.creation_system,
-        creation_key: inserted.creation_key,
-        generated_on: inserted.generated_on,
-        name: inserted.name,
-    }))
+    Ok(())
 }

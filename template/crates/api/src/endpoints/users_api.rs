@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 const GROUP: &str = "Users (API)";
-const PATH: &str = "/v1/users";
+const PATH: &str = "/api/v1/users";
 
 #[derive(Debug, Deserialize, Serialize, ToSchema)]
 pub struct UserRequest {
@@ -29,7 +29,7 @@ pub struct UserResponse {
         (status = 200, description = "List of users", body = [UserResponse])
     )
 )]
-pub async fn get_users(State(db): State<DatabaseConnection>) -> Json<Vec<UserResponse>> {
+pub async fn api_get_users(State(db): State<DatabaseConnection>) -> Json<Vec<UserResponse>> {
     let users = Entity::find().all(&db).await.unwrap();
     let responses = users
         .into_iter()
@@ -60,7 +60,7 @@ pub async fn get_users(State(db): State<DatabaseConnection>) -> Json<Vec<UserRes
         ("oidc" = ["openid", "email", "profile"])
     )
 )]
-pub async fn create_user(
+pub async fn api_create_user(
     auth_user: AuthenticatedUser,
     Extension(config): Extension<Config>,
     State(db): State<DatabaseConnection>,
