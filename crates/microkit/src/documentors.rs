@@ -79,7 +79,7 @@ pub fn documentors(
     // Documentation viewers
     for documentor in documentors {
         let name = &documentor[1..];
-        log::info!("{}: http://{}/{}", name, local_addr, name);
+        tracing::info!("{}: http://{}/{}", name, local_addr, name);
     }
 
     router
@@ -131,7 +131,7 @@ pub fn documentors(router: Router, api: &OpenApi, local_addr: &SocketAddr) -> Ro
     // Documentation viewers
     for documentor in documentors {
         let name = &documentor[1..];
-        log::info!("{}: http://{}/{}", name, local_addr, name);
+        tracing::info!("{}: http://{}/{}", name, local_addr, name);
     }
 
     router

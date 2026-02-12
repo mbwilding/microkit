@@ -20,7 +20,6 @@ api = { path = "template/crates/api" }
 # External
 anyhow = "1.0"
 axum = { version = "0.8", features = ["macros"] }
-log = { version = "0.4", features = ["std"] }
 sea-orm = { version = "2.0.0-rc.31", features = [
     "debug-print",
     "runtime-tokio-native-tls",
@@ -30,5 +29,6 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_yaml_ng = "0.10"
 tokio = { version = "1.45", features = ["full"] }
+tracing = "0.1"
 utoipa = { version = "5.4", features = ["axum_extras"] }
 utoipa-axum = { version = "0.2" }

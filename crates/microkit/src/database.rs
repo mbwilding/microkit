@@ -16,7 +16,7 @@ pub async fn setup_database(
         None => bail!("database_name not set"),
     };
 
-    log::info!("database: connecting to root database");
+    tracing::info!("database: connecting to root database");
     let db = Database::connect(url).await?;
 
     if let Some(true) = drop {
@@ -41,7 +41,7 @@ pub async fn setup_database(
         }
     }
 
-    log::info!("connecting to database '{}'", &name);
+    tracing::info!("connecting to database '{}'", &name);
     let url = format!("{}/{}", &url, &name);
     Ok(Database::connect(&url).await?)
 }

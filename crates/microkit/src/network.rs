@@ -28,7 +28,7 @@ pub async fn network(
     let listener = TcpListener::bind(address).await?;
     let local_address = listener.local_addr()?;
 
-    log::info!("{}: http://{}", port_base, local_address);
+    tracing::info!("{}: http://{}", port_base, local_address);
 
     Ok((local_address, listener))
 }
