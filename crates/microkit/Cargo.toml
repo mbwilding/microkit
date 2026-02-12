@@ -18,19 +18,16 @@ all-features = true
 microkit-macros = { workspace = true }
 # Workspace External
 anyhow = { workspace = true }
-log = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_yaml_ng = { workspace = true }
 tokio = { workspace = true }
-# External
-axum = { version = "0.8", features = ["macros"] }
-
-# Tracing
-tracing = { version = "0.1", optional = true }
+tracing = { workspace = true }
 tracing-subscriber = { version = "0.3", features = [
     "env-filter",
 ], optional = true }
+# External
+axum = { version = "0.8", features = ["macros"] }
 
 # Database
 sea-orm = { version = "2.0.0-rc.31", features = [
@@ -62,7 +59,7 @@ opentelemetry = { version = "0.30", features = [
     "trace",
     "metrics",
 ], optional = true }
-opentelemetry-appender-log = { version = "0.30", optional = true }
+opentelemetry-appender-tracing = { version = "0.30", optional = true }
 opentelemetry-http = { version = "0.30", optional = true }
 opentelemetry-otlp = { version = "0.30", features = [
     "http-proto",
@@ -99,7 +96,7 @@ default = [
     "auth",
 ]
 # Tracing
-tracing = ["dep:tracing", "dep:tracing-subscriber"]
+tracing = ["dep:tracing-subscriber"]
 # Database support
 database = ["dep:sea-orm", "dep:sea-orm-migration"]
 # Enables authentication with OIDC
@@ -121,12 +118,11 @@ otel = [
     "dep:axum-otel",
     "dep:axum-otel-metrics",
     "dep:opentelemetry",
-    "dep:opentelemetry-appender-log",
+    "dep:opentelemetry-appender-tracing",
     "dep:opentelemetry-http",
     "dep:opentelemetry-otlp",
     "dep:opentelemetry-semantic-conventions",
     "dep:opentelemetry_sdk",
     "dep:tower-http",
-    "dep:tracing",
     "dep:tracing-opentelemetry",
 ]

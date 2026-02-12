@@ -43,18 +43,16 @@ use tower_http::cors::CorsLayer;
 use utoipa_axum::router::OpenApiRouter;
 
 pub enum ServicePort {
-    Client,
     Api,
-    Consumer,
+    Client,
     Other(u16),
 }
 
 impl ServicePort {
     pub fn get(&self) -> u16 {
         match self {
-            ServicePort::Client => 7000,
-            ServicePort::Api => 9000,
-            ServicePort::Consumer => 10000,
+            ServicePort::Api => 50000,
+            ServicePort::Client => 60000,
             ServicePort::Other(port) => *port,
         }
     }
@@ -67,9 +65,8 @@ impl ServicePort {
 impl Display for ServicePort {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ServicePort::Client => write!(f, "client"),
             ServicePort::Api => write!(f, "api"),
-            ServicePort::Consumer => write!(f, "consumer"),
+            ServicePort::Client => write!(f, "client"),
             ServicePort::Other(_) => write!(f, "other"),
         }
     }
@@ -309,7 +306,7 @@ impl MicroKitBuilder {
     /// Build the MicroKit instance with all configured features
     pub async fn build(self) -> Result<MicroKit> {
         #[cfg(feature = "otel")]
-        let tracer_provider = if self.enable_otel {
+        let otel_providers = if self.enable_otel {
             otel::init_providers(&self.config.service_name, &self.config.otel)?
         } else {
             None
@@ -317,26 +314,42 @@ impl MicroKitBuilder {
 
         #[cfg(feature = "tracing")]
         if self.enable_logging {
-            let filter = if let Some(log_level) = &self.config.log_level {
-                EnvFilter::new(log_level)
-            } else {
-                EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"))
+            // Build filter that respects RUST_LOG environment variable first,
+            // then falls back to config, then defaults to "info"
+            let filter = match std::env::var("RUST_LOG") {
+                Ok(_) => {
+                    // RUST_LOG is set, use it
+                    EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"))
+                }
+                Err(_) => {
+                    // RUST_LOG not set, check config
+                    if let Some(log_level) = &self.config.log_level {
+                        EnvFilter::new(log_level)
+                    } else {
+                        EnvFilter::new("info")
+                    }
+                }
             };
 
             #[cfg(all(feature = "otel", feature = "tracing"))]
             if self.enable_otel
-                && let Some(tracer_provider) = tracer_provider
+                && let Some((tracer_provider, logger_provider)) = otel_providers
             {
                 use opentelemetry::trace::TracerProvider;
+                use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
                 use tracing_opentelemetry::OpenTelemetryLayer;
                 use tracing_subscriber::Registry;
                 use tracing_subscriber::layer::SubscriberExt;
 
                 let tracer = tracer_provider.tracer("microkit");
+                let otel_layer = OpenTelemetryLayer::new(tracer);
+                let log_layer = OpenTelemetryTracingBridge::new(&logger_provider);
+
                 let subscriber = Registry::default()
                     .with(filter)
                     .with(fmt::layer())
-                    .with(OpenTelemetryLayer::new(tracer));
+                    .with(otel_layer)
+                    .with(log_layer);
 
                 let _ = tracing::subscriber::set_global_default(subscriber);
             } else {
@@ -425,10 +438,10 @@ impl MicroKitBuilder {
         let auth = if self.enable_auth {
             let auth_config = self.config.create_auth_config()?;
             if let Some(auth) = auth_config {
-                log::info!("Authentication initialized");
+                tracing::info!("Authentication initialized");
                 Some(auth)
             } else {
-                log::warn!("Authentication feature enabled but no auth config in microkit.yml");
+                tracing::warn!("Authentication feature enabled but no auth config in microkit.yml");
                 None
             }
         } else {

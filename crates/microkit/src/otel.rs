@@ -4,7 +4,6 @@ use axum::Router;
 use axum_otel::{AxumOtelOnFailure, AxumOtelOnResponse, AxumOtelSpanCreator};
 use axum_otel_metrics::HttpMetricsLayerBuilder;
 use opentelemetry::global;
-use opentelemetry_appender_log::OpenTelemetryLogBridge;
 use opentelemetry_otlp::{LogExporter, MetricExporter, SpanExporter, WithExportConfig};
 use opentelemetry_sdk::logs::SdkLoggerProvider;
 use opentelemetry_sdk::metrics::{PeriodicReader, SdkMeterProvider};
@@ -16,7 +15,7 @@ use tower_http::trace::TraceLayer;
 pub fn init_providers(
     service_name: &str,
     config: &Option<OtelConfig>,
-) -> Result<Option<SdkTracerProvider>> {
+) -> Result<Option<(SdkTracerProvider, SdkLoggerProvider)>> {
     if config.is_none() {
         bail!("otel: init_providers called but no config found");
     }
@@ -62,16 +61,13 @@ pub fn init_providers(
         .with_endpoint(url.clone())
         .build()
         .context("Failed to create log exporter")?;
+
     let logger_provider = SdkLoggerProvider::builder()
         .with_batch_exporter(logger_exporter)
         .with_resource(resource.clone())
         .build();
-    let otel_log_appender = OpenTelemetryLogBridge::new(&logger_provider);
 
-    log::set_boxed_logger(Box::new(otel_log_appender)).context("Failed to set logger")?;
-    log::set_max_level(log::LevelFilter::Info);
-
-    Ok(Some(tracer_provider))
+    Ok(Some((tracer_provider, logger_provider)))
 }
 
 pub fn apply_layers(router: Router) -> Router {

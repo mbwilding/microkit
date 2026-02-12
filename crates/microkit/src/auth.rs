@@ -189,7 +189,7 @@ where
             .extensions
             .get::<AuthConfig>()
             .ok_or_else(|| {
-                log::error!(
+                tracing::error!(
                     "AuthConfig not found in request extensions. \
                          Did you forget to add it via middleware or state?"
                 );
@@ -205,7 +205,7 @@ where
             .validate_token(bearer.token())
             .await
             .map_err(|e| {
-                log::warn!("JWT validation failed: {}", e);
+                tracing::warn!("JWT validation failed: {}", e);
                 (StatusCode::UNAUTHORIZED, format!("Invalid token: {}", e))
             })?;
 

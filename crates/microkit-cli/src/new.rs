@@ -1,52 +1,103 @@
 use anyhow::{Context, Result, bail};
 use clap::Parser;
 use microkit::config::Config;
-use serde::Deserialize;
-use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use toml_edit::DocumentMut;
+
+#[cfg(not(debug_assertions))]
+use serde::Deserialize;
+#[cfg(not(debug_assertions))]
+use std::io::Cursor;
+#[cfg(not(debug_assertions))]
 use zip::ZipArchive;
 
 #[derive(Parser)]
 pub(crate) struct NewArgs {
     /// Name of the service
-    #[arg(short, long)]
     name: String,
     /// Description of the service
     #[arg(short, long)]
     description: Option<String>,
     /// Port offset, this will offset your ports so you can run multiple services at the same time
-    #[arg(short, long)]
+    #[arg(short, long, default_value = "0")]
     port_offset: u16,
     /// The MicroKit git tag to create the service from (default: latest version from crates.io)
     #[arg(short, long)]
     tag: Option<String>,
 }
 
+#[cfg(not(debug_assertions))]
 #[derive(Deserialize)]
 struct CratesIoResponse {
     #[serde(rename = "crate")]
     crate_info: CrateInfo,
 }
 
+#[cfg(not(debug_assertions))]
 #[derive(Deserialize)]
 struct CrateInfo {
     max_version: String,
 }
 
-pub async fn new(args: NewArgs) -> Result<()> {
-    println!("Creating new service '{}'", args.name);
+pub async fn exec(args: NewArgs) -> Result<()> {
+    exec_impl(args).await
+}
 
-    let target_dir = PathBuf::from(&args.name);
+#[cfg(debug_assertions)]
+async fn exec_impl(args: NewArgs) -> Result<()> {
+    println!("Creating new service '{}'", args.name);
+    println!("[DEBUG MODE ACTIVE]");
+
+    let test_dir = PathBuf::from(".test");
+    if !test_dir.exists() {
+        std::fs::create_dir(&test_dir).context("Failed to create .test directory")?;
+    }
+    let target_dir = test_dir.join(&args.name);
+
     if target_dir.exists() {
         bail!(
             "Cannot create service: directory '{}' already exists. Please choose a different name or remove the existing directory.",
-            args.name
+            target_dir.display()
         );
     }
 
     std::fs::create_dir(&target_dir)
-        .with_context(|| format!("Failed to create directory '{}'", args.name))?;
+        .with_context(|| format!("Failed to create directory '{}'", target_dir.display()))?;
+
+    println!("Debug mode: Using local template folder");
+    copy_local_template(&target_dir).context("Failed to copy local template files")?;
+
+    let cargo_disabled = target_dir.join("Cargo.toml-disabled");
+    let cargo_toml = target_dir.join("Cargo.toml");
+    if cargo_disabled.exists() {
+        std::fs::rename(&cargo_disabled, &cargo_toml)
+            .context("Failed to rename Cargo.toml-disabled to Cargo.toml")?;
+    }
+
+    update_config(&target_dir, &args.name, args.description, args.port_offset)?;
+
+    fix_debug_cargo_paths(&target_dir)?;
+
+    println!("Created service '{}' successfully", args.name);
+
+    Ok(())
+}
+
+#[cfg(not(debug_assertions))]
+async fn exec_impl(args: NewArgs) -> Result<()> {
+    println!("Creating new service '{}'", args.name);
+
+    let target_dir = PathBuf::from(&args.name);
+
+    if target_dir.exists() {
+        bail!(
+            "Cannot create service: directory '{}' already exists. Please choose a different name or remove the existing directory.",
+            target_dir.display()
+        );
+    }
+
+    std::fs::create_dir(&target_dir)
+        .with_context(|| format!("Failed to create directory '{}'", target_dir.display()))?;
 
     let version = if let Some(tag) = args.tag {
         tag
@@ -68,6 +119,8 @@ pub async fn new(args: NewArgs) -> Result<()> {
     }
 
     update_config(&target_dir, &args.name, args.description, args.port_offset)?;
+
+    // In release mode, update to specific version tag
     update_kit_reference(&target_dir, &version)?;
 
     println!("Created service '{}' successfully", args.name);
@@ -75,6 +128,7 @@ pub async fn new(args: NewArgs) -> Result<()> {
     Ok(())
 }
 
+#[cfg(not(debug_assertions))]
 async fn get_latest_version() -> Result<String> {
     println!("Fetching latest version from crates.io...");
     let url = "https://crates.io/api/v1/crates/microkit";
@@ -101,6 +155,7 @@ async fn get_latest_version() -> Result<String> {
     Ok(data.crate_info.max_version)
 }
 
+#[cfg(not(debug_assertions))]
 async fn get_template(target: &Path, tag: &str) -> Result<()> {
     println!("Downloading template from GitHub...");
     download_and_extract_template(target, tag)
@@ -110,6 +165,58 @@ async fn get_template(target: &Path, tag: &str) -> Result<()> {
     Ok(())
 }
 
+#[cfg(debug_assertions)]
+fn copy_local_template(target: &Path) -> Result<()> {
+    let workspace_root = std::env::current_dir().context("Failed to get current directory")?;
+
+    let template_dir = workspace_root.join("template");
+
+    if !template_dir.exists() {
+        bail!(
+            "Template directory not found at '{}'. Make sure you're running from the workspace root.",
+            template_dir.display()
+        );
+    }
+
+    println!("Copying from local template: {}", template_dir.display());
+
+    copy_dir_recursive(&template_dir, target).context("Failed to copy template directory")?;
+
+    Ok(())
+}
+
+#[cfg(debug_assertions)]
+fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<()> {
+    if !dst.exists() {
+        std::fs::create_dir_all(dst)
+            .with_context(|| format!("Failed to create directory '{}'", dst.display()))?;
+    }
+
+    for entry in std::fs::read_dir(src)
+        .with_context(|| format!("Failed to read directory '{}'", src.display()))?
+    {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        let src_path = entry.path();
+        let dst_path = dst.join(entry.file_name());
+
+        if file_type.is_dir() {
+            copy_dir_recursive(&src_path, &dst_path)?;
+        } else {
+            std::fs::copy(&src_path, &dst_path).with_context(|| {
+                format!(
+                    "Failed to copy '{}' to '{}'",
+                    src_path.display(),
+                    dst_path.display()
+                )
+            })?;
+        }
+    }
+
+    Ok(())
+}
+
+#[cfg(not(debug_assertions))]
 async fn download_and_extract_template(target: &Path, tag: &str) -> Result<()> {
     let url = format!(
         "https://github.com/mbwilding/microkit/archive/refs/tags/{}.zip",
@@ -197,6 +304,7 @@ fn update_config(
     Ok(())
 }
 
+#[cfg(not(debug_assertions))]
 fn update_kit_reference(target_dir: &Path, tag: &str) -> Result<()> {
     let cargo_toml_path = target_dir.join("Cargo.toml");
 
@@ -209,6 +317,28 @@ fn update_kit_reference(target_dir: &Path, tag: &str) -> Result<()> {
         && deps.contains_key("microkit")
     {
         deps["microkit"] = toml_edit::value(tag);
+    }
+
+    std::fs::write(&cargo_toml_path, doc.to_string())?;
+
+    Ok(())
+}
+
+#[cfg(debug_assertions)]
+fn fix_debug_cargo_paths(target_dir: &Path) -> Result<()> {
+    let cargo_toml_path = target_dir.join("Cargo.toml");
+
+    let cargo_toml = std::fs::read_to_string(&cargo_toml_path)?;
+
+    let mut doc = cargo_toml.parse::<DocumentMut>()?;
+
+    if let Some(workspace) = doc["workspace"].as_table_mut()
+        && let Some(deps) = workspace["dependencies"].as_table_mut()
+        && deps.contains_key("microkit")
+    {
+        let mut table = toml_edit::InlineTable::new();
+        table.insert("path", "../../crates/microkit".into());
+        deps["microkit"] = toml_edit::value(table);
     }
 
     std::fs::write(&cargo_toml_path, doc.to_string())?;

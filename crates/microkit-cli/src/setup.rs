@@ -1,7 +1,7 @@
 use crate::run_command;
 use anyhow::{Context, Result};
 
-pub fn setup() -> Result<()> {
+pub fn exec() -> Result<()> {
     println!("Setting up environment");
 
     println!("Starting containers");

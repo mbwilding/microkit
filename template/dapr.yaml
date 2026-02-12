@@ -6,11 +6,5 @@ apps:
   - appID: api
     appDirPath: ./
     appProtocol: grpc
-    # appPort: 50051
     logLevel: info
     command: ["cargo", "run", "--bin", "api"]
-  # - appID: consumer
-  #   appDirPath: ./
-  #   appProtocol: grpc
-  #   logLevel: info
-  #   command: ["cargo", "run", "--bin", "consumer"]

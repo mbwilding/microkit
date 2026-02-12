@@ -4,14 +4,6 @@ version = "0.1.0"
 edition = "2024"
 publish = false
 
-[[bin]]
-name = "api"
-path = "src/main.rs"
-
-[lib]
-name = "api"
-path = "src/lib.rs"
-
 [dependencies]
 # MicroKit
 microkit = { workspace = true }
@@ -24,7 +16,6 @@ axum = { workspace = true }
 sea-orm = { workspace = true }
 serde = { workspace = true }
 tokio = { workspace = true }
+tracing = { workspace = true }
 utoipa = { workspace = true }
 utoipa-axum = { workspace = true }
-# External
-tracing = "0.1"
