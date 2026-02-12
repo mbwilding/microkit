@@ -5,115 +5,189 @@ use std::path::PathBuf;
 use syn::{Data, DeriveInput, Fields, Item, ItemFn, LitStr, parse_macro_input};
 
 /// Discovers and registers all endpoint modules in a directory
+///
+/// Usage:
+/// - `discover_endpoints!()` - Auto-discovers endpoints in "src/endpoints" directory
+/// - `discover_endpoints!("path/to/endpoints")` - Discovers endpoints in specified path
 #[proc_macro]
 pub fn discover_endpoints(input: TokenStream) -> TokenStream {
-    let path_lit = parse_macro_input!(input as LitStr);
-    let endpoints_path = path_lit.value();
+    let endpoints_path = if input.is_empty() {
+        "src/endpoints".to_string()
+    } else {
+        let path_lit = parse_macro_input!(input as LitStr);
+        path_lit.value()
+    };
 
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR not set");
 
-    let full_path = PathBuf::from(manifest_dir).join(&endpoints_path);
+    let base_path = PathBuf::from(&manifest_dir).join(&endpoints_path);
 
+    #[derive(Debug)]
     struct EndpointInfo {
-        module_name: String,
+        module_path: Vec<String>,
         handlers: Vec<String>,
     }
 
     let mut endpoints = Vec::new();
 
-    if full_path.exists() && full_path.is_dir() {
-        match fs::read_dir(&full_path) {
-            Ok(entries) => {
-                for entry in entries.flatten() {
-                    let path = entry.path();
+    fn discover_recursive(
+        dir: &PathBuf,
+        base: &PathBuf,
+        endpoints: &mut Vec<EndpointInfo>,
+    ) -> Result<(), String> {
+        if !dir.exists() || !dir.is_dir() {
+            return Ok(());
+        }
 
-                    if path.is_file()
-                        && let Some(file_name) = path.file_name()
-                        && let Some(file_name_str) = file_name.to_str()
-                        && file_name_str.ends_with(".rs")
-                        && file_name_str != "mod.rs"
-                    {
-                        let module_name = &file_name_str[..file_name_str.len() - 3];
-                        if let Ok(content) = fs::read_to_string(&path)
-                            && let Ok(syntax_tree) = syn::parse_file(&content)
-                        {
-                            let mut handlers = Vec::new();
+        let entries = fs::read_dir(dir)
+            .map_err(|e| format!("Failed to read directory '{}': {}", dir.display(), e))?;
 
-                            for item in syntax_tree.items {
-                                if let Item::Fn(func) = item
-                                    && has_utoipa_path_attr(&func)
-                                {
-                                    handlers.push(func.sig.ident.to_string());
-                                }
-                            }
+        for entry in entries.flatten() {
+            let path = entry.path();
 
-                            if !handlers.is_empty() {
-                                endpoints.push(EndpointInfo {
-                                    module_name: module_name.to_string(),
-                                    handlers,
-                                });
-                            }
+            if path.is_dir() {
+                discover_recursive(&path, base, endpoints)?;
+            } else if path.is_file()
+                && let Some(file_name) = path.file_name()
+                && let Some(file_name_str) = file_name.to_str()
+                && file_name_str.ends_with(".rs")
+                && file_name_str != "mod.rs"
+            {
+                let relative = path
+                    .strip_prefix(base)
+                    .map_err(|e| format!("Failed to strip prefix: {}", e))?;
+
+                let mut module_path = Vec::new();
+
+                if let Some(parent) = relative.parent() {
+                    for component in parent.components() {
+                        if let Some(name) = component.as_os_str().to_str() {
+                            module_path.push(name.to_string());
                         }
                     }
                 }
-            }
-            Err(e) => {
-                return syn::Error::new(
-                    path_lit.span(),
-                    format!("Failed to read directory '{}': {}", full_path.display(), e),
-                )
-                .to_compile_error()
-                .into();
+
+                let module_name = &file_name_str[..file_name_str.len() - 3];
+                module_path.push(module_name.to_string());
+
+                if let Ok(content) = fs::read_to_string(&path)
+                    && let Ok(syntax_tree) = syn::parse_file(&content)
+                {
+                    let mut handlers = Vec::new();
+
+                    for item in syntax_tree.items {
+                        if let Item::Fn(func) = item
+                            && has_utoipa_path_attr(&func)
+                        {
+                            handlers.push(func.sig.ident.to_string());
+                        }
+                    }
+
+                    if !handlers.is_empty() {
+                        endpoints.push(EndpointInfo {
+                            module_path,
+                            handlers,
+                        });
+                    }
+                }
             }
         }
-    } else {
-        return syn::Error::new(
-            path_lit.span(),
-            format!("Directory '{}' does not exist", full_path.display()),
-        )
-        .to_compile_error()
-        .into();
+
+        Ok(())
     }
 
-    endpoints.sort_by(|a, b| a.module_name.cmp(&b.module_name));
+    if let Err(e) = discover_recursive(&base_path, &base_path, &mut endpoints) {
+        return syn::Error::new(proc_macro2::Span::call_site(), e)
+            .to_compile_error()
+            .into();
+    }
+
+    endpoints.sort_by(|a, b| a.module_path.cmp(&b.module_path));
 
     if endpoints.is_empty() {
         return syn::Error::new(
-            path_lit.span(),
-            format!("No endpoint modules found in '{}'", full_path.display()),
+            proc_macro2::Span::call_site(),
+            format!("No endpoint modules found in '{}'", base_path.display()),
         )
         .to_compile_error()
         .into();
     }
 
-    let module_idents: Vec<_> = endpoints
-        .iter()
-        .map(|ep| syn::Ident::new(&ep.module_name, proc_macro2::Span::call_site()))
-        .collect();
+    use std::collections::{BTreeMap, BTreeSet};
 
-    let module_decls = module_idents.iter().map(|ident| {
-        quote! {
-            pub mod #ident;
+    let mut module_tree: BTreeMap<Vec<String>, BTreeSet<String>> = BTreeMap::new();
+
+    for ep in &endpoints {
+        for i in 0..ep.module_path.len() {
+            let parent_path = if i == 0 {
+                Vec::new()
+            } else {
+                ep.module_path[..i].to_vec()
+            };
+            let child_name = ep.module_path[i].clone();
+            module_tree
+                .entry(parent_path)
+                .or_default()
+                .insert(child_name);
         }
-    });
+    }
 
-    let register_calls = endpoints.iter().map(|ep| {
-        let module_ident = syn::Ident::new(&ep.module_name, proc_macro2::Span::call_site());
-        let handler_idents: Vec<_> = ep
-            .handlers
-            .iter()
-            .map(|h| syn::Ident::new(h, proc_macro2::Span::call_site()))
-            .collect();
+    fn generate_module_decls(
+        parent_path: &[String],
+        module_tree: &BTreeMap<Vec<String>, BTreeSet<String>>,
+        endpoints: &[EndpointInfo],
+    ) -> Vec<proc_macro2::TokenStream> {
+        let mut decls = Vec::new();
 
-        quote! {
-            if let Some(db) = &service.database {
-                let router = ::utoipa_axum::router::OpenApiRouter::new()
-                    .routes(::utoipa_axum::routes!(#(#module_ident::#handler_idents),*))
-                    .with_state(db.clone());
-                service.add_route(router);
+        if let Some(children) = module_tree.get(parent_path) {
+            for child_name in children {
+                let child_ident = syn::Ident::new(child_name, proc_macro2::Span::call_site());
+                let mut child_path = parent_path.to_vec();
+                child_path.push(child_name.clone());
+
+                let has_children = module_tree.contains_key(&child_path);
+
+                if has_children {
+                    let nested_decls = generate_module_decls(&child_path, module_tree, endpoints);
+                    decls.push(quote! {
+                        pub mod #child_ident {
+                            #(#nested_decls)*
+                        }
+                    });
+                } else {
+                    decls.push(quote! {
+                        pub mod #child_ident;
+                    });
+                }
             }
         }
-    });
+
+        decls
+    }
+
+    let module_decls = generate_module_decls(&[], &module_tree, &endpoints);
+
+    let register_calls: Vec<_> = endpoints
+        .iter()
+        .map(|ep| {
+            let mut full_paths = Vec::new();
+
+            for handler in &ep.handlers {
+                let path_string = format!("{}::{}", ep.module_path.join("::"), handler);
+                let path: syn::Path = syn::parse_str(&path_string).expect("Failed to parse path");
+                full_paths.push(path);
+            }
+
+            quote! {
+                if let Some(db) = &service.database {
+                    let router = ::utoipa_axum::router::OpenApiRouter::new()
+                        .routes(::utoipa_axum::routes!(#(#full_paths),*))
+                        .with_state(db.clone());
+                    service.add_route(router);
+                }
+            }
+        })
+        .collect();
 
     let expanded = quote! {
         #(#module_decls)*

@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use microkit::event_contract;
+use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "utoipa")]
 use utoipa::ToSchema;
