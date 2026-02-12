@@ -9,7 +9,7 @@ volumes:
 services:
   postgres:
     image: postgres
-    container_name: microkit-postgres
+    container_name: postgres
     restart: always
     networks:
       - development
@@ -18,11 +18,11 @@ services:
     environment:
       - POSTGRES_PASSWORD=Developer01
     volumes:
-      - microkit_postgres:/var/lib/postgresql/data
+      - microkit_postgres:/var/lib/postgresql
 
   rabbitmq:
     image: masstransit/rabbitmq
-    container_name: microkit-rabbitmq
+    container_name: rabbitmq
     restart: always
     networks:
       - development
@@ -34,7 +34,7 @@ services:
 
   aspire-dashboard:
     image: mcr.microsoft.com/dotnet/aspire-dashboard:latest
-    container_name: microkit-aspire-dashboard
+    container_name: aspire
     restart: always
     networks:
       - development
