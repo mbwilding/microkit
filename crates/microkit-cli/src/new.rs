@@ -1,8 +1,11 @@
 use anyhow::{Context, Result, bail};
 use clap::Parser;
 use microkit::config::Config;
+use serde::Deserialize;
+use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use toml_edit::DocumentMut;
+use zip::ZipArchive;
 
 #[derive(Parser)]
 pub(crate) struct NewArgs {
@@ -15,9 +18,20 @@ pub(crate) struct NewArgs {
     /// Port offset, this will offset your ports so you can run multiple services at the same time
     #[arg(short, long)]
     port_offset: u16,
-    /// The MicroKit git branch to create the service from (default: main)
+    /// The MicroKit git tag to create the service from (default: latest version from crates.io)
     #[arg(short, long)]
-    branch: Option<String>,
+    tag: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct CratesIoResponse {
+    #[serde(rename = "crate")]
+    crate_info: CrateInfo,
+}
+
+#[derive(Deserialize)]
+struct CrateInfo {
+    max_version: String,
 }
 
 pub async fn new(args: NewArgs) -> Result<()> {
@@ -34,7 +48,15 @@ pub async fn new(args: NewArgs) -> Result<()> {
     std::fs::create_dir(&target_dir)
         .with_context(|| format!("Failed to create directory '{}'", args.name))?;
 
-    get_template(&target_dir, args.branch)
+    let version = if let Some(tag) = args.tag {
+        tag
+    } else {
+        let latest = get_latest_version().await?;
+        println!("Using latest version: {}", latest);
+        latest
+    };
+
+    get_template(&target_dir, &version)
         .await
         .context("Failed to extract template files")?;
 
@@ -46,86 +68,61 @@ pub async fn new(args: NewArgs) -> Result<()> {
     }
 
     update_config(&target_dir, &args.name, args.description, args.port_offset)?;
-    update_kit_reference(&target_dir)?;
+    update_kit_reference(&target_dir, &version)?;
 
     println!("Created service '{}' successfully", args.name);
 
     Ok(())
 }
 
-#[allow(unused_variables)]
-async fn get_template(target: &Path, branch: Option<String>) -> Result<()> {
-    #[cfg(debug_assertions)]
-    {
-        let template_path = PathBuf::from("template");
-        if !template_path.exists() {
-            bail!(
-                "Template directory not found at: {}",
-                template_path.display()
-            );
-        }
-        println!("Using local template");
-        copy_dir_all(&template_path, target).context("Failed to copy local template")?;
+async fn get_latest_version() -> Result<String> {
+    println!("Fetching latest version from crates.io...");
+    let url = "https://crates.io/api/v1/crates/microkit";
+
+    let client = reqwest::Client::builder()
+        .user_agent("microkit-cli")
+        .build()?;
+
+    let response = client
+        .get(url)
+        .send()
+        .await
+        .context("Failed to fetch version from crates.io")?;
+
+    if !response.status().is_success() {
+        bail!("Failed to fetch crates.io data: HTTP {}", response.status());
     }
 
-    #[cfg(not(debug_assertions))]
-    {
-        // Release build: download from GitHub
-        println!("Downloading latest template from GitHub...");
-        download_and_extract_template(target, branch)
-            .await
-            .context("Failed to download template from GitHub")?;
-    }
+    let data: CratesIoResponse = response
+        .json()
+        .await
+        .context("Failed to parse crates.io response")?;
+
+    Ok(data.crate_info.max_version)
+}
+
+async fn get_template(target: &Path, tag: &str) -> Result<()> {
+    println!("Downloading template from GitHub...");
+    download_and_extract_template(target, tag)
+        .await
+        .context("Failed to download template from GitHub")?;
 
     Ok(())
 }
 
-#[cfg(debug_assertions)]
-fn copy_dir_all(src: &Path, dst: &Path) -> Result<()> {
-    std::fs::create_dir_all(dst)
-        .with_context(|| format!("Failed to create directory: {}", dst.display()))?;
-
-    for entry in std::fs::read_dir(src)
-        .with_context(|| format!("Failed to read directory: {}", src.display()))?
-    {
-        let entry = entry?;
-        let path = entry.path();
-        let file_name = entry.file_name();
-        let dest_path = dst.join(&file_name);
-
-        // Skip any directories that look like generated projects
-        if path.is_dir() {
-            let name_str = file_name.to_string_lossy();
-            // Skip hidden directories except .cargo
-            if name_str.starts_with('.') && name_str != ".cargo" {
-                continue;
-            }
-            copy_dir_all(&path, &dest_path)
-                .with_context(|| format!("Failed to copy directory: {}", path.display()))?;
-        } else {
-            std::fs::copy(&path, &dest_path).with_context(|| {
-                format!(
-                    "Failed to copy file: {} to {}",
-                    path.display(),
-                    dest_path.display()
-                )
-            })?;
-        }
-    }
-
-    Ok(())
-}
-
-#[cfg(not(debug_assertions))]
-async fn download_and_extract_template(target: &Path, branch: Option<String>) -> Result<()> {
-    use std::io::Cursor;
-    use zip::ZipArchive;
-
+async fn download_and_extract_template(target: &Path, tag: &str) -> Result<()> {
     let url = format!(
-        "https://github.com/mbwilding/microkit/archive/refs/heads/{}.zip",
-        branch.as_deref().unwrap_or("main")
+        "https://github.com/mbwilding/microkit/archive/refs/tags/{}.zip",
+        tag
     );
-    let response = reqwest::get(url)
+
+    let client = reqwest::Client::builder()
+        .user_agent("microkit-cli")
+        .build()?;
+
+    let response = client
+        .get(&url)
+        .send()
         .await
         .context("Failed to download template from GitHub")?;
 
@@ -141,19 +138,18 @@ async fn download_and_extract_template(target: &Path, branch: Option<String>) ->
     let cursor = Cursor::new(bytes);
     let mut archive = ZipArchive::new(cursor).context("Failed to read zip archive")?;
 
-    let prefix = "microkit-main/template/";
+    // The prefix in the zip for tags: microkit-{version}/template/
+    let prefix = format!("microkit-{}/template/", tag);
 
     for i in 0..archive.len() {
         let mut file = archive.by_index(i)?;
         let file_path = file.name();
 
-        // Only extract files from the template directory
-        if !file_path.starts_with(prefix) {
+        if !file_path.starts_with(&prefix) {
             continue;
         }
 
-        // Remove the prefix to get the relative path
-        let relative_path = file_path.strip_prefix(prefix).unwrap();
+        let relative_path = file_path.strip_prefix(&prefix).unwrap();
 
         if relative_path.is_empty() {
             continue;
@@ -201,7 +197,7 @@ fn update_config(
     Ok(())
 }
 
-fn update_kit_reference(target_dir: &Path) -> Result<()> {
+fn update_kit_reference(target_dir: &Path, tag: &str) -> Result<()> {
     let cargo_toml_path = target_dir.join("Cargo.toml");
 
     let cargo_toml = std::fs::read_to_string(&cargo_toml_path)?;
@@ -212,14 +208,7 @@ fn update_kit_reference(target_dir: &Path) -> Result<()> {
         && let Some(deps) = workspace["dependencies"].as_table_mut()
         && deps.contains_key("microkit")
     {
-        let version = env!("CARGO_PKG_VERSION");
-
-        if version != "0.0.0" {
-            deps["microkit"]["version"] = toml_edit::value(version);
-        } else {
-            deps["microkit"]["path"] =
-                toml_edit::value(format!("../{}", deps["microkit"]["path"].as_str().unwrap()));
-        }
+        deps["microkit"] = toml_edit::value(tag);
     }
 
     std::fs::write(&cargo_toml_path, doc.to_string())?;
