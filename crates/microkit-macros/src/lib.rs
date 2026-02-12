@@ -2,36 +2,18 @@ use proc_macro::TokenStream;
 use quote::quote;
 use std::fs;
 use std::path::PathBuf;
-use syn::{Item, ItemFn, LitStr, parse_macro_input};
+use syn::{Data, DeriveInput, Fields, Item, ItemFn, LitStr, parse_macro_input};
 
 /// Discovers and registers all endpoint modules in a directory
-///
-/// This macro scans the specified directory for .rs files (excluding mod.rs),
-/// parses each file to find handler functions with #[utoipa::path] attributes,
-/// and automatically generates everything needed for registration
-///
-/// # Example
-///
-/// In your `endpoints/mod.rs`:
-/// ```rust
-/// microkit::discover_endpoints!("src/endpoints");
-/// ```
-///
-/// Then in your main lib.rs:
-/// ```rust
-/// endpoints::init_endpoints(&mut service)?;
-/// ```
 #[proc_macro]
 pub fn discover_endpoints(input: TokenStream) -> TokenStream {
     let path_lit = parse_macro_input!(input as LitStr);
     let endpoints_path = path_lit.value();
 
-    // Get the manifest directory (the crate root)
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR not set");
 
     let full_path = PathBuf::from(manifest_dir).join(&endpoints_path);
 
-    // Structure to hold endpoint information
     struct EndpointInfo {
         module_name: String,
         handlers: Vec<String>,
@@ -48,33 +30,28 @@ pub fn discover_endpoints(input: TokenStream) -> TokenStream {
                     if path.is_file()
                         && let Some(file_name) = path.file_name()
                         && let Some(file_name_str) = file_name.to_str()
+                        && file_name_str.ends_with(".rs")
+                        && file_name_str != "mod.rs"
                     {
-                        // Skip mod.rs and only process .rs files
-                        if file_name_str.ends_with(".rs") && file_name_str != "mod.rs" {
-                            // Extract module name (remove .rs extension)
-                            let module_name = &file_name_str[..file_name_str.len() - 3];
+                        let module_name = &file_name_str[..file_name_str.len() - 3];
+                        if let Ok(content) = fs::read_to_string(&path)
+                            && let Ok(syntax_tree) = syn::parse_file(&content)
+                        {
+                            let mut handlers = Vec::new();
 
-                            // Parse the file to find handler functions
-                            if let Ok(content) = fs::read_to_string(&path)
-                                && let Ok(syntax_tree) = syn::parse_file(&content)
-                            {
-                                let mut handlers = Vec::new();
-
-                                for item in syntax_tree.items {
-                                    if let Item::Fn(func) = item {
-                                        // Check if function has #[utoipa::path] attribute
-                                        if has_utoipa_path_attr(&func) {
-                                            handlers.push(func.sig.ident.to_string());
-                                        }
-                                    }
+                            for item in syntax_tree.items {
+                                if let Item::Fn(func) = item
+                                    && has_utoipa_path_attr(&func)
+                                {
+                                    handlers.push(func.sig.ident.to_string());
                                 }
+                            }
 
-                                if !handlers.is_empty() {
-                                    endpoints.push(EndpointInfo {
-                                        module_name: module_name.to_string(),
-                                        handlers,
-                                    });
-                                }
+                            if !handlers.is_empty() {
+                                endpoints.push(EndpointInfo {
+                                    module_name: module_name.to_string(),
+                                    handlers,
+                                });
                             }
                         }
                     }
@@ -98,7 +75,6 @@ pub fn discover_endpoints(input: TokenStream) -> TokenStream {
         .into();
     }
 
-    // Sort for consistent output
     endpoints.sort_by(|a, b| a.module_name.cmp(&b.module_name));
 
     if endpoints.is_empty() {
@@ -110,7 +86,6 @@ pub fn discover_endpoints(input: TokenStream) -> TokenStream {
         .into();
     }
 
-    // Generate module declarations
     let module_idents: Vec<_> = endpoints
         .iter()
         .map(|ep| syn::Ident::new(&ep.module_name, proc_macro2::Span::call_site()))
@@ -122,7 +97,6 @@ pub fn discover_endpoints(input: TokenStream) -> TokenStream {
         }
     });
 
-    // Generate registration calls
     let register_calls = endpoints.iter().map(|ep| {
         let module_ident = syn::Ident::new(&ep.module_name, proc_macro2::Span::call_site());
         let handler_idents: Vec<_> = ep
@@ -141,7 +115,6 @@ pub fn discover_endpoints(input: TokenStream) -> TokenStream {
         }
     });
 
-    // Generate the complete code
     let expanded = quote! {
         #(#module_decls)*
 
@@ -163,7 +136,6 @@ pub fn discover_endpoints(input: TokenStream) -> TokenStream {
 /// Check if a function has a #[utoipa::path] attribute
 fn has_utoipa_path_attr(func: &ItemFn) -> bool {
     for attr in &func.attrs {
-        // Check if the attribute path matches "utoipa::path"
         if attr.path().segments.len() == 2 {
             let segments: Vec<_> = attr.path().segments.iter().collect();
             if segments[0].ident == "utoipa" && segments[1].ident == "path" {
@@ -175,13 +147,6 @@ fn has_utoipa_path_attr(func: &ItemFn) -> bool {
 }
 
 /// Registers endpoint modules with a MicroKit service
-///
-/// # Example
-///
-/// ```rust
-/// let db = &service.database;
-/// microkit::register_endpoints!(service, db, endpoints => [users, posts]);
-/// ```
 #[proc_macro]
 pub fn register_endpoints(input: TokenStream) -> TokenStream {
     use syn::{
@@ -235,6 +200,299 @@ pub fn register_endpoints(input: TokenStream) -> TokenStream {
 
     let expanded = quote! {
         #(#register_calls)*
+    };
+
+    TokenStream::from(expanded)
+}
+
+/// Derive macro for entities with creation tracking
+#[proc_macro_derive(CreationTracked)]
+pub fn derive_creation_tracked(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    let name = &input.ident;
+
+    let fields = match &input.data {
+        Data::Struct(data) => match &data.fields {
+            Fields::Named(fields) => &fields.named,
+            _ => {
+                return syn::Error::new_spanned(
+                    &input,
+                    "CreationTracked can only be derived for structs with named fields",
+                )
+                .to_compile_error()
+                .into();
+            }
+        },
+        _ => {
+            return syn::Error::new_spanned(
+                &input,
+                "CreationTracked can only be derived for structs",
+            )
+            .to_compile_error()
+            .into();
+        }
+    };
+
+    let mut has_creation_system = false;
+    let mut has_creation_key = false;
+    let mut has_generated_on = false;
+
+    for field in fields {
+        if let Some(ident) = &field.ident {
+            if ident == "creation_system" {
+                has_creation_system = true;
+            }
+            if ident == "creation_key" {
+                has_creation_key = true;
+            }
+            if ident == "generated_on" {
+                has_generated_on = true;
+            }
+        }
+    }
+
+    if !has_creation_system {
+        return syn::Error::new_spanned(
+            &input,
+            "CreationTracked requires a `creation_system: String` field",
+        )
+        .to_compile_error()
+        .into();
+    }
+
+    if !has_creation_key {
+        return syn::Error::new_spanned(
+            &input,
+            "CreationTracked requires a `creation_key: String` field",
+        )
+        .to_compile_error()
+        .into();
+    }
+
+    if !has_generated_on {
+        return syn::Error::new_spanned(
+            &input,
+            "CreationTracked requires a `generated_on: chrono::DateTime<chrono::Utc>` field",
+        )
+        .to_compile_error()
+        .into();
+    }
+
+    // Generate the implementation
+    let expanded = quote! {
+        impl microkit::entity::CreationTracking for #name {
+            fn creation_system(&self) -> &str {
+                &self.creation_system
+            }
+
+            fn creation_key(&self) -> &str {
+                &self.creation_key
+            }
+        }
+    };
+
+    TokenStream::from(expanded)
+}
+
+/// Attribute macro for event contracts that automatically adds creation tracking fields and generated_on
+#[proc_macro_attribute]
+pub fn event_contract(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let mut input = parse_macro_input!(item as DeriveInput);
+    let name = &input.ident;
+    let vis = &input.vis;
+
+    let fields = match &mut input.data {
+        Data::Struct(data) => match &mut data.fields {
+            Fields::Named(fields) => fields,
+            _ => {
+                return syn::Error::new_spanned(
+                    &input,
+                    "event_contract can only be used with structs with named fields",
+                )
+                .to_compile_error()
+                .into();
+            }
+        },
+        _ => {
+            return syn::Error::new_spanned(&input, "event_contract can only be used with structs")
+                .to_compile_error()
+                .into();
+        }
+    };
+
+    for field in fields.named.iter() {
+        if let Some(ident) = &field.ident
+            && (ident == "creation_system" || ident == "creation_key" || ident == "generated_on")
+        {
+            return syn::Error::new_spanned(
+                    field,
+                    format!("#[event_contract] automatically adds '{}' field - please remove it from your struct", ident)
+                )
+                .to_compile_error()
+                .into();
+        }
+    }
+
+    let field_names: Vec<_> = fields
+        .named
+        .iter()
+        .filter_map(|f| f.ident.as_ref())
+        .cloned()
+        .collect();
+
+    let field_types: Vec<_> = fields.named.iter().map(|f| f.ty.clone()).collect();
+
+    let creation_system_field: syn::Field = syn::parse_quote! {
+        #vis creation_system: String
+    };
+
+    let creation_key_field: syn::Field = syn::parse_quote! {
+        #vis creation_key: String
+    };
+
+    let generated_on_field: syn::Field = syn::parse_quote! {
+        #vis generated_on: chrono::DateTime<chrono::Utc>
+    };
+
+    fields.named.insert(0, generated_on_field);
+    fields.named.insert(0, creation_key_field);
+    fields.named.insert(0, creation_system_field);
+
+    let attrs = &input.attrs;
+    let generics = &input.generics;
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
+    let all_fields = &fields.named;
+
+    let expanded = quote! {
+        #(#attrs)*
+        #vis struct #name #generics {
+            #all_fields
+        }
+
+        impl #impl_generics #name #ty_generics #where_clause {
+            #vis fn new(
+                creation_system: String,
+                creation_key: String,
+                #(#field_names: #field_types),*
+            ) -> Self {
+                Self {
+                    creation_system,
+                    creation_key,
+                    generated_on: chrono::Utc::now(),
+                    #(#field_names),*
+                }
+            }
+        }
+
+        impl #impl_generics microkit::entity::CreationTracking for #name #ty_generics #where_clause {
+            fn creation_system(&self) -> &str {
+                &self.creation_system
+            }
+
+            fn creation_key(&self) -> &str {
+                &self.creation_key
+            }
+        }
+    };
+
+    TokenStream::from(expanded)
+}
+
+/// Attribute macro for api contracts that automatically adds creation tracking fields
+#[proc_macro_attribute]
+pub fn api_contract(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let mut input = parse_macro_input!(item as DeriveInput);
+    let name = &input.ident;
+    let vis = &input.vis;
+
+    let fields = match &mut input.data {
+        Data::Struct(data) => match &mut data.fields {
+            Fields::Named(fields) => fields,
+            _ => {
+                return syn::Error::new_spanned(
+                    &input,
+                    "api_contract can only be used with structs with named fields",
+                )
+                .to_compile_error()
+                .into();
+            }
+        },
+        _ => {
+            return syn::Error::new_spanned(&input, "api_contract can only be used with structs")
+                .to_compile_error()
+                .into();
+        }
+    };
+
+    for field in fields.named.iter() {
+        if let Some(ident) = &field.ident
+            && (ident == "creation_system" || ident == "creation_key")
+        {
+            return syn::Error::new_spanned(
+                    field,
+                    format!("#[api_contract] automatically adds '{}' field - please remove it from your struct", ident)
+                )
+                .to_compile_error()
+                .into();
+        }
+    }
+
+    let field_names: Vec<_> = fields
+        .named
+        .iter()
+        .filter_map(|f| f.ident.as_ref())
+        .cloned()
+        .collect();
+
+    let field_types: Vec<_> = fields.named.iter().map(|f| f.ty.clone()).collect();
+
+    let creation_system_field: syn::Field = syn::parse_quote! {
+        #vis creation_system: String
+    };
+
+    let creation_key_field: syn::Field = syn::parse_quote! {
+        #vis creation_key: String
+    };
+
+    fields.named.insert(0, creation_key_field);
+    fields.named.insert(0, creation_system_field);
+
+    let attrs = &input.attrs;
+    let generics = &input.generics;
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
+    let all_fields = &fields.named;
+
+    let expanded = quote! {
+        #(#attrs)*
+        #vis struct #name #generics {
+            #all_fields
+        }
+
+        impl #impl_generics #name #ty_generics #where_clause {
+            #vis fn new(
+                creation_system: String,
+                creation_key: String,
+                #(#field_names: #field_types),*
+            ) -> Self {
+                Self {
+                    creation_system,
+                    creation_key,
+                    #(#field_names),*
+                }
+            }
+        }
+
+        impl #impl_generics microkit::entity::CreationTracking for #name #ty_generics #where_clause {
+            fn creation_system(&self) -> &str {
+                &self.creation_system
+            }
+
+            fn creation_key(&self) -> &str {
+                &self.creation_key
+            }
+        }
     };
 
     TokenStream::from(expanded)
