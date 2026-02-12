@@ -3,6 +3,7 @@ pub(crate) mod new;
 pub(crate) mod run;
 pub(crate) mod setup;
 
+use crate::new::NewArgs;
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
 use microkit::config::Config;
@@ -23,16 +24,7 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     /// Creates a new service
-    New {
-        /// Name of the service
-        name: String,
-        /// Port offset, this will offset your ports so you can run multiple services at the same time
-        port_offset: u16,
-        /// Description of the service
-        description: Option<String>,
-        /// The MicroKit git branch to create the service from (default: main)
-        branch: Option<String>,
-    },
+    New(NewArgs),
     /// Setup the environment
     Setup,
     /// Run all services using dapr
@@ -52,12 +44,7 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::New {
-            name,
-            port_offset,
-            description,
-            branch,
-        } => new::new(name, port_offset, description, branch).await,
+        Commands::New(args) => new::new(args).await,
         Commands::Setup => {
             cwd_check_set()?;
             setup::setup()
