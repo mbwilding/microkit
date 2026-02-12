@@ -1,28 +1,40 @@
 use anyhow::{Context, Result, bail};
+use clap::Parser;
 use microkit::config::Config;
 use std::path::{Path, PathBuf};
 use toml_edit::DocumentMut;
 
-pub async fn new(
+#[derive(Parser)]
+pub(crate) struct NewArgs {
+    /// Name of the service
+    #[arg(short, long)]
     name: String,
-    port_offset: u16,
+    /// Description of the service
+    #[arg(short, long)]
     description: Option<String>,
+    /// Port offset, this will offset your ports so you can run multiple services at the same time
+    #[arg(short, long)]
+    port_offset: u16,
+    /// The MicroKit git branch to create the service from (default: main)
+    #[arg(short, long)]
     branch: Option<String>,
-) -> Result<()> {
-    println!("Creating new service '{}'", name);
+}
 
-    let target_dir = PathBuf::from(&name);
+pub async fn new(args: NewArgs) -> Result<()> {
+    println!("Creating new service '{}'", args.name);
+
+    let target_dir = PathBuf::from(&args.name);
     if target_dir.exists() {
         bail!(
             "Cannot create service: directory '{}' already exists. Please choose a different name or remove the existing directory.",
-            name
+            args.name
         );
     }
 
     std::fs::create_dir(&target_dir)
-        .with_context(|| format!("Failed to create directory '{}'", name))?;
+        .with_context(|| format!("Failed to create directory '{}'", args.name))?;
 
-    get_template(&target_dir, branch)
+    get_template(&target_dir, args.branch)
         .await
         .context("Failed to extract template files")?;
 
@@ -33,10 +45,10 @@ pub async fn new(
             .context("Failed to rename Cargo.toml-disabled to Cargo.toml")?;
     }
 
-    update_config(&target_dir, &name, description, port_offset)?;
+    update_config(&target_dir, &args.name, args.description, args.port_offset)?;
     update_kit_reference(&target_dir)?;
 
-    println!("Created service '{}' successfully", name);
+    println!("Created service '{}' successfully", args.name);
 
     Ok(())
 }
