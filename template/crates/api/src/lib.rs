@@ -1,6 +1,6 @@
 mod endpoints;
 
-use microkit::{MicroKit, ServicePort};
+use microkit::prelude::*;
 
 #[tokio::main]
 pub async fn start() -> anyhow::Result<()> {

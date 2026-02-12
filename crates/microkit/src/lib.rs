@@ -1,5 +1,6 @@
 pub mod config;
 pub mod network;
+pub mod prelude;
 pub mod router;
 
 pub use microkit_macros::{discover_endpoints, register_endpoints};
