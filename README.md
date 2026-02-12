@@ -22,9 +22,9 @@ Create a new service:
 mk new my-service
 ```
 
-Run the service:
+Run all services:
 ```bash
-mk all
+mk run
 ```
 
 See the [MicroKit CLI](crates/microkit-cli/README.md) for more details.

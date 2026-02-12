@@ -23,18 +23,16 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Creates a new service
+    /// Create a new service
     New(NewArgs),
-    /// Setup the environment
+    /// Set up the environment
     Setup,
-    /// Run all services using dapr
-    All,
-    /// Run a specific binary
+    /// Run dapr to launch your workloads; optionally specify a project
     Run {
-        /// Name of the binary to run
-        name: String,
+        /// Name of the binary to run. If not provided, dapr will execute
+        name: Option<String>,
     },
-    /// Database commands
+    /// Database-related commands
     #[command(subcommand)]
     Db(database::Commands),
 }
@@ -44,18 +42,14 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::New(args) => new::new(args).await,
+        Commands::New(args) => new::exec(args).await,
         Commands::Setup => {
             cwd_check_set()?;
-            setup::setup()
-        }
-        Commands::All => {
-            cwd_check_set()?;
-            run::all()
+            setup::exec()
         }
         Commands::Run { name } => {
             cwd_check_set()?;
-            run::binary(name)
+            run::exec(name)
         }
         Commands::Db(cmd) => {
             cwd_check_set()?;

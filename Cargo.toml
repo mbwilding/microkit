@@ -32,3 +32,10 @@ tokio = { version = "1.45", features = ["full"] }
 tracing = "0.1"
 utoipa = { version = "5.4", features = ["axum_extras"] }
 utoipa-axum = { version = "0.2" }
+
+[profile.release]
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+strip = true
+panic = "unwind"

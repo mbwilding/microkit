@@ -107,7 +107,7 @@ Ideally you'd have a reverse proxy dealing with TLS to expose a https endpoint.
 Run all services with Dapr:
 
 ```bash
-mk all
+mk run
 ```
 
 Or run a specific binary:

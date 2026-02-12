@@ -24,20 +24,25 @@ The CLI is available as `mk` after installation.
 mk new <service-name>
 ```
 
+Options:
+- `-d, --description <DESCRIPTION>` - Description of the service
+- `-p, --port-offset <PORT_OFFSET>` - Port offset for running multiple services (default: 0)
+- `-t, --tag <TAG>` - MicroKit git tag to create the service from
+
 ### Setup environment
 
 ```bash
 mk setup
 ```
 
-### Run all services with Dapr
+### Run services with Dapr
 
+Run all services:
 ```bash
-mk all
+mk run
 ```
 
-### Run a specific binary
-
+Run a specific binary:
 ```bash
 mk run <binary-name>
 ```
