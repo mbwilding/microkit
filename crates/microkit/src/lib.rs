@@ -43,18 +43,16 @@ use tower_http::cors::CorsLayer;
 use utoipa_axum::router::OpenApiRouter;
 
 pub enum ServicePort {
-    Client,
     Api,
-    Consumer,
+    Client,
     Other(u16),
 }
 
 impl ServicePort {
     pub fn get(&self) -> u16 {
         match self {
-            ServicePort::Client => 7000,
-            ServicePort::Api => 9000,
-            ServicePort::Consumer => 10000,
+            ServicePort::Api => 50000,
+            ServicePort::Client => 60000,
             ServicePort::Other(port) => *port,
         }
     }
@@ -67,9 +65,8 @@ impl ServicePort {
 impl Display for ServicePort {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ServicePort::Client => write!(f, "client"),
             ServicePort::Api => write!(f, "api"),
-            ServicePort::Consumer => write!(f, "consumer"),
+            ServicePort::Client => write!(f, "client"),
             ServicePort::Other(_) => write!(f, "other"),
         }
     }

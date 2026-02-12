@@ -73,24 +73,26 @@ auth:
 
 MicroKit uses predefined port bases for different service types:
 
-- **API**: Base port 9000
-- **Client**: Base port 7000
-- **Consumer**: Base port 10000
+- **API**: Base port 50000
+- **Client**: Base port 60000
 
-> Client and Consumer not yet implemented
+> Client not yet implemented
 
-The `port_offset` configuration allows you to run multiple services simultaneously. For example, with `port_offset: 0`, the API runs on port 9000, and with `port_offset: 1`, it runs on port 9001. When omitted it'll default to port `80`
+The `port_offset` configuration allows you to run multiple services simultaneously. For example, with `port_offset: 0`, the API runs on port 9000, and with `port_offset: 1`, it runs on port 9001. When omitted it'll default to port `80` for when hosting on infrastructure.
+Ideally you'd have a reverse proxy dealing with TLS to expose a https endpoint.
 
 ## Getting Started
 
 ### Prerequisites
 
 1. Install the MicroKit CLI:
+
    ```bash
    cargo install microkit-cli
    ```
 
 2. Start infrastructure services:
+
    ```bash
    mk setup
    ```
@@ -103,11 +105,13 @@ The `port_offset` configuration allows you to run multiple services simultaneous
 ### Running the Service
 
 Run all services with Dapr:
+
 ```bash
 mk all
 ```
 
 Or run a specific binary:
+
 ```bash
 mk run api
 ```
@@ -115,16 +119,19 @@ mk run api
 ### Database Operations
 
 Generate entities from database schema:
+
 ```bash
 mk db entity
 ```
 
 Create a new migration:
+
 ```bash
 mk db migrate add_users_table
 ```
 
 Drop and recreate database:
+
 ```bash
 mk db fresh
 ```
@@ -132,6 +139,8 @@ mk db fresh
 ## Building Your Service
 
 The template uses the MicroKit builder pattern. See `crates/api/src/lib.rs` for the default configuration:
+
+> As you enable and disable features, some of these will become unavailable
 
 ```rust
 MicroKit::builder()
@@ -166,6 +175,7 @@ The template includes all MicroKit features by default:
 ## Testing
 
 Run tests with database mocking:
+
 ```bash
 cd crates/api
 cargo test --features mock
@@ -175,12 +185,15 @@ cargo test --features mock
 
 When running the service, API documentation is available at:
 
-- Swagger UI: `http://localhost:9000/swagger`
-- Health checks: `http://localhost:9000/status/ready` and `http://localhost:9000/status/live`
+- Swagger UI: `http://localhost:50000/swagger`
+- Health checks: `http://localhost:50000/status/ready` and `http://localhost:50000/status/live`
+
+Add the port offset to the port number to calculate the correct one.
 
 ## Observability
 
 The Aspire Dashboard provides:
+
 - Distributed tracing visualization
 - Metrics and logs
 - Service dependencies
