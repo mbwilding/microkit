@@ -6,8 +6,8 @@ spec:
   pubsubname: defaultmessagebus
   topic: user.created
   routes:
-    default: /events/users
-  deadLetterTopic: user.created.deadletter
+    default: /consumer/v1/users
+  deadLetterTopic: deadletterqueue
   bulkSubscribe:
     enabled: false
   # Optional: Scopes - restrict which apps can publish to this topic
