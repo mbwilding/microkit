@@ -15,7 +15,7 @@ use std::sync::{
 };
 
 #[derive(Parser)]
-#[command(about = "MicroKit CLI tool to create and manage services", long_about = None)]
+#[command(about = "MicroKit CLI tool to create and manage services", long_about = None, version)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
