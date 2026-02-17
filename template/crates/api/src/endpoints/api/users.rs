@@ -20,7 +20,8 @@ pub struct UserResponse {
 }
 
 /// Get users
-#[tracing::instrument(skip(db))]
+// #[tracing::instrument(skip(db))]
+#[tracing::instrument()]
 #[utoipa::path(
     get,
     path = PATH,
@@ -44,7 +45,8 @@ pub async fn api_get_users(State(db): State<DatabaseConnection>) -> Json<Vec<Use
 }
 
 /// Create user
-#[tracing::instrument(skip(auth_user, config, db))]
+// #[tracing::instrument(skip(auth_user, config, db))]
+#[tracing::instrument()]
 #[utoipa::path(
     post,
     path = PATH,

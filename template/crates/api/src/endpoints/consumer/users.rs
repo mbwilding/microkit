@@ -7,7 +7,8 @@ const GROUP: &str = "Users (CONSUMER)";
 const PATH: &str = "/consumer/v1/users";
 
 /// Create user
-#[tracing::instrument(skip(db))]
+// #[tracing::instrument(skip(db))]
+#[tracing::instrument()]
 #[utoipa::path(
     post,
     path = PATH,
