@@ -1,27 +1,27 @@
-use axum::{Json, extract::State};
+use axum::{Extension, Json, extract::State};
 use entities::users::{ActiveModel, Entity, Model};
-use microkit::auth::AuthenticatedUser;
-use sea_orm::Set;
+use microkit::prelude::*;
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-const GROUP: &str = "Users";
-const PATH: &str = "/v1/users";
+const GROUP: &str = "Users (API)";
+const PATH: &str = "/api/v1/users";
 
 #[derive(Debug, Deserialize, Serialize, ToSchema)]
 pub struct UserRequest {
     pub name: String,
 }
 
+#[api_contract]
 #[derive(Debug, Serialize, ToSchema)]
 pub struct UserResponse {
-    pub id: i32,
     pub name: String,
 }
 
 /// Get users
-#[tracing::instrument(skip(db))]
+// #[tracing::instrument(skip(db))]
+#[tracing::instrument()]
 #[utoipa::path(
     get,
     path = PATH,
@@ -30,21 +30,23 @@ pub struct UserResponse {
         (status = 200, description = "List of users", body = [UserResponse])
     )
 )]
-pub async fn get_users(State(db): State<DatabaseConnection>) -> Json<Vec<UserResponse>> {
-    let names = Entity::find().all(&db).await.unwrap();
-    let responses = names
+pub async fn api_get_users(State(db): State<DatabaseConnection>) -> Json<Vec<UserResponse>> {
+    let users = Entity::find().all(&db).await.unwrap();
+    let responses = users
         .into_iter()
-        .map(|n| UserResponse {
-            id: n.id,
-            name: n.name,
+        .map(|u| UserResponse {
+            creation_system: u.creation_system,
+            creation_key: u.creation_key,
+            name: u.name,
         })
         .collect();
 
     Json(responses)
 }
 
-/// Create new user
-#[tracing::instrument(skip(auth_user, db))]
+/// Create user
+// #[tracing::instrument(skip(auth_user, config, db))]
+#[tracing::instrument()]
 #[utoipa::path(
     post,
     path = PATH,
@@ -60,31 +62,25 @@ pub async fn get_users(State(db): State<DatabaseConnection>) -> Json<Vec<UserRes
         ("oidc" = ["openid", "email", "profile"])
     )
 )]
-pub async fn create_user(
+pub async fn api_create_user(
     auth_user: AuthenticatedUser,
+    Extension(config): Extension<Config>,
     State(db): State<DatabaseConnection>,
     Json(payload): Json<UserRequest>,
 ) -> Json<UserResponse> {
-    // Log who is creating the user
     tracing::info!(
         user_id = %auth_user.sub,
         email = ?auth_user.email,
         groups = ?auth_user.groups,
-        "User creating new user"
+        "User creating new user via API"
     );
 
-    // if !auth_user.has_role("admin") {
-    //     return Err((StatusCode::FORBIDDEN, "Requires admin role"));
-    // }
-
-    let active_model = ActiveModel {
-        name: Set(payload.name),
-        ..Default::default()
-    };
+    let active_model = ActiveModel::from_api(&config, payload.name);
     let inserted: Model = active_model.insert(&db).await.unwrap();
 
     Json(UserResponse {
-        id: inserted.id,
+        creation_system: inserted.creation_system,
+        creation_key: inserted.creation_key,
         name: inserted.name,
     })
 }

@@ -11,17 +11,24 @@ impl MigrationTrait for Migration {
                 Table::create()
                     .table(Users::Table)
                     .if_not_exists()
+                    .col(ColumnDef::new(Users::CreationSystem).string().not_null())
+                    .col(ColumnDef::new(Users::CreationKey).string().not_null())
                     .col(
-                        ColumnDef::new(Users::Id)
-                            .integer()
-                            .not_null()
-                            .auto_increment()
-                            .primary_key(),
+                        ColumnDef::new(Users::GeneratedOn)
+                            .timestamp_with_time_zone()
+                            .not_null(),
                     )
                     .col(ColumnDef::new(Users::Name).string().not_null())
+                    .primary_key(
+                        Index::create()
+                            .col(Users::CreationSystem)
+                            .col(Users::CreationKey),
+                    )
                     .to_owned(),
             )
-            .await
+            .await?;
+
+        Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
@@ -34,6 +41,8 @@ impl MigrationTrait for Migration {
 #[derive(DeriveIden)]
 enum Users {
     Table,
-    Id,
+    CreationSystem,
+    CreationKey,
+    GeneratedOn,
     Name,
 }

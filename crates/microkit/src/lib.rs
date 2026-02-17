@@ -1,9 +1,10 @@
 pub mod config;
+pub mod entity;
 pub mod network;
 pub mod prelude;
 pub mod router;
 
-pub use microkit_macros::{discover_endpoints, register_endpoints};
+pub use microkit_macros::*;
 
 #[cfg(any(
     feature = "swagger",
@@ -161,6 +162,18 @@ impl MicroKit {
         if let Some(router) = &mut self.router {
             #[allow(unused_mut)]
             let (mut router, api) = router.clone().split_for_parts();
+
+            let config = self.config.clone();
+            router = router.layer(axum::middleware::from_fn(
+                move |mut req: axum::http::Request<axum::body::Body>,
+                      next: axum::middleware::Next| {
+                    let config = config.clone();
+                    async move {
+                        req.extensions_mut().insert(config);
+                        next.run(req).await
+                    }
+                },
+            ));
 
             #[cfg(feature = "auth")]
             if let Some(auth) = &self.auth {

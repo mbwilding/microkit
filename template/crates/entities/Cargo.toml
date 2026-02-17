@@ -9,6 +9,11 @@ name = "entities"
 path = "src/lib.rs"
 
 [dependencies]
+# Internal
+microkit = { workspace = true }
+contracts = { workspace = true }
 # External
+chrono = { workspace = true }
 sea-orm = { workspace = true }
 serde = { workspace = true }
+uuid = { workspace = true }
