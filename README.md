@@ -4,6 +4,15 @@ A framework for building microservices with Axum, providing database integration
 
 WIP: Eventing/Messaging via dapr
 
+## Development (NixOS)
+
+A `flake.nix` and `.envrc` are included. With `direnv` installed, the dev shell
+activates automatically on `cd`. To enter it manually:
+
+```bash
+nix develop
+```
+
 ## Crates
 
 - [MicroKit](crates/microkit/README.md) - Core library for building microservices

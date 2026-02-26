@@ -2,3 +2,5 @@ Cargo.lock
 config-private.yml
 /target/
 /.dapr/
+.direnv/
+flake.lock
