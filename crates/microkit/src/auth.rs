@@ -14,12 +14,13 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 /// JWT claims from OIDC token
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct JwtClaims {
     /// Subject - unique user identifier
     pub sub: String,
     /// Email address
     pub email: Option<String>,
+    // TODO: Handle having only ``groups` and cognito:groups will populate on fallback
     /// Cognito user groups
     #[serde(rename = "cognito:groups")]
     pub cognito_groups: Option<Vec<String>>,
@@ -38,7 +39,7 @@ pub struct JwtClaims {
 /// Authenticated user extracted from validated JWT
 ///
 /// Add this as a parameter to any handler that requires authentication
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct AuthenticatedUser {
     /// Sub claim
     pub sub: String,

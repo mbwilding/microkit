@@ -15,7 +15,7 @@ pub async fn get() -> Result<Config> {
     Ok(config)
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Config {
     pub service_name: String,
     pub service_desc: Option<String>,

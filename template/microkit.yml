@@ -1,6 +1,6 @@
-service_name: AwesomeService
-service_desc: The most awesome service
-database_name: awesomeservice
+service_name: MicroKit
+service_desc: An example service
+database_name: microkit
 database_url: postgres://postgres:Developer01@localhost
 database_drop: false
 port_offset: 0

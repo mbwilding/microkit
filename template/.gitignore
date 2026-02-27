@@ -1,6 +1,5 @@
-Cargo.lock
-config-private.yml
-/target/
 /.dapr/
-.direnv/
+/.direnv/
+/target/
+Cargo.lock
 flake.lock

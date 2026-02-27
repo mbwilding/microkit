@@ -1,32 +1,32 @@
 name: microkit
 
 networks:
-  development:
+  microkit:
     driver: bridge
 
 volumes:
-  microkit_postgres:
+  postgres:
 
 services:
   postgres:
     image: postgres
-    container_name: microkit-postgres
+    container_name: postgres
     restart: always
     networks:
-      - development
+      - microkit
     ports:
       - 5432:5432
     environment:
       - POSTGRES_PASSWORD=Developer01
     volumes:
-      - microkit_postgres:/var/lib/postgresql
+      - postgres:/var/lib/postgresql
 
   rabbitmq:
     image: masstransit/rabbitmq
-    container_name: microkit-rabbitmq
+    container_name: rabbitmq
     restart: always
     networks:
-      - development
+      - microkit
     ports:
       - 15672:15672 # UI
       - 5672:5672   # AMQP
@@ -35,10 +35,10 @@ services:
 
   aspire-dashboard:
     image: mcr.microsoft.com/dotnet/aspire-dashboard:latest
-    container_name: microkit-aspire-dashboard
+    container_name: aspire
     restart: always
     networks:
-      - development
+      - microkit
     ports:
       - "18888:18888" # UI
       - "4317:18889"  # OTLP gRPC

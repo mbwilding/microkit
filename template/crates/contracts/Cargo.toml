@@ -1,0 +1,21 @@
+[package]
+name = "contracts"
+version = "0.0.0"
+edition = "2024"
+description = "Event contracts"
+publish = true
+
+[dependencies]
+# Workspace Internal
+microkit = { workspace = true }
+# Workspace External
+chrono = { workspace = true }
+serde = { workspace = true }
+utoipa = { workspace = true, optional = true }
+
+[dev-dependencies]
+serde_json = "1.0"
+
+[features]
+default = []
+utoipa = ["dep:utoipa"]

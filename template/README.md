@@ -32,8 +32,8 @@ The `microkit.yml` file is the central configuration for your MicroKit service. 
 ### Core Settings
 
 ```yaml
-service_name: AwesomeService  # Required: Name of your service
-service_desc: The most awesome service  # Optional: Description for API documentation
+service_name: MicroKit # Required: Name of your service
+service_desc: An example service  # Optional: Description for API documentation
 host: localhost  # Optional: Host to bind to (default: localhost)
 log_level: info  # Optional: Logging level (trace, debug, info, warn, error)
 port_offset: 0   # Optional: Port offset for when you are running multiple services
@@ -45,7 +45,7 @@ When using the `database` feature:
 
 ```yaml
 database_url: postgres://postgres:Developer01@localhost  # Optional: Database connection URL
-database_name: awesomeservice  # Optional: Database name to connect to
+database_name: microkit  # Optional: Database name to connect to
 database_drop: false  # Optional: Drop and recreate database on startup (useful for development)
 ```
 
@@ -69,14 +69,12 @@ auth:
   jwks_uri: https://cognito-idp.{region}.amazonaws.com/{userPoolId}/.well-known/jwks.json  # Required: JWKS endpoint
   audience: your-client-id  # Optional: Expected audience/client ID for token validation
   client_id: your-client-id  # Optional: Client ID for documentation
-  client_secret: your-secret  # Optional: Client secret (store in config-private.yml)
+  client_secret: your-secret  # Optional: Client secret for documentor
   scopes:  # Optional: Default scopes for documentation
     - openid
     - profile
     - email
 ```
-
-**Note:** For sensitive values like `client_secret`, create a separate `config-private.yml` file that is not committed to version control.
 
 ## Port Configuration
 

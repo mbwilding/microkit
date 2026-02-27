@@ -13,9 +13,9 @@ use zip::ZipArchive;
 
 #[derive(Parser)]
 pub(crate) struct NewArgs {
-    /// Name of the service
+    /// Name of the service: MicroKit
     name: String,
-    /// Description of the service
+    /// Description of the service: An example service
     #[arg(short, long)]
     description: Option<String>,
     /// Port offset, this will offset your ports so you can run multiple services at the same time
@@ -39,7 +39,8 @@ struct CrateInfo {
     max_version: String,
 }
 
-pub async fn exec(args: NewArgs) -> Result<()> {
+pub async fn exec(mut args: NewArgs) -> Result<()> {
+    args.name = args.name.trim().to_string();
     exec_impl(args).await
 }
 
@@ -67,12 +68,12 @@ async fn exec_impl(args: NewArgs) -> Result<()> {
     println!("Debug mode: Using local template folder");
     copy_local_template(&target_dir).context("Failed to copy local template files")?;
 
-    let cargo_disabled = target_dir.join("Cargo.toml-disabled");
-    let cargo_toml = target_dir.join("Cargo.toml");
-    if cargo_disabled.exists() {
-        std::fs::rename(&cargo_disabled, &cargo_toml)
-            .context("Failed to rename Cargo.toml-disabled to Cargo.toml")?;
-    }
+    // let cargo_disabled = target_dir.join("Cargo.toml-disabled");
+    // let cargo_toml = target_dir.join("Cargo.toml");
+    // if cargo_disabled.exists() {
+    //     std::fs::rename(&cargo_disabled, &cargo_toml)
+    //         .context("Failed to rename Cargo.toml-disabled to Cargo.toml")?;
+    // }
 
     update_config(&target_dir, &args.name, args.description, args.port_offset)?;
 
@@ -111,12 +112,12 @@ async fn exec_impl(args: NewArgs) -> Result<()> {
         .await
         .context("Failed to extract template files")?;
 
-    let cargo_disabled = target_dir.join("Cargo.toml-disabled");
-    let cargo_toml = target_dir.join("Cargo.toml");
-    if cargo_disabled.exists() {
-        std::fs::rename(&cargo_disabled, &cargo_toml)
-            .context("Failed to rename Cargo.toml-disabled to Cargo.toml")?;
-    }
+    // let cargo_disabled = target_dir.join("Cargo.toml-disabled");
+    // let cargo_toml = target_dir.join("Cargo.toml");
+    // if cargo_disabled.exists() {
+    //     std::fs::rename(&cargo_disabled, &cargo_toml)
+    //         .context("Failed to rename Cargo.toml-disabled to Cargo.toml")?;
+    // }
 
     update_config(&target_dir, &args.name, args.description, args.port_offset)?;
 
@@ -294,6 +295,12 @@ fn update_config(
 
     config.service_name = name.to_string();
     config.service_desc = description;
+    config.database_name = Some(
+        name.chars()
+            .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+            .collect::<String>()
+            .to_lowercase(),
+    );
     config.port_offset = Some(port_offset);
 
     let updated_content =
