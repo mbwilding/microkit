@@ -2,6 +2,15 @@
 
 This is the MicroKit template for building microservices. When you create a new service with `mk new <service-name>`, this template is used to generate a standalone project with all the necessary structure and configuration.
 
+## Development (NixOS)
+
+A `flake.nix` and `.envrc` are included. With `direnv` installed, the dev shell
+activates automatically on `cd`. To enter it manually:
+
+```bash
+nix develop
+```
+
 ## Project Structure
 
 ```
