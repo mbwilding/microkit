@@ -3,7 +3,7 @@
 [web.app]
 
 # HTML title tag content
-title = "web2"
+title = "MicroKit Website"
 
 # include `assets` in web platform
 [web.resource]

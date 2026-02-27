@@ -14,7 +14,7 @@ pub struct UserRequest {
 }
 
 #[api_contract]
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct UserResponse {
     pub name: String,
 }

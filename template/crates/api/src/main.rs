@@ -1,5 +1,3 @@
-mod endpoints;
-
 use microkit::prelude::*;
 
 #[tokio::main]
@@ -14,7 +12,7 @@ pub async fn main() -> anyhow::Result<()> {
         .with_health_checks()
         .with_otel()
         .with_migrations::<migrations::Migrator>()
-        .with_endpoints(endpoints::init_endpoints)
+        .with_endpoints(api::endpoints::init_endpoints)
         .build()
         .await?
         .start(ServicePort::Api)
