@@ -15,7 +15,6 @@ const CALLBACK_PORT: u16 = 4444;
 const CALLBACK_URI: &str = "http://localhost:4444/callback";
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
-const MAIN_CSS: Asset = asset!("/assets/main.css");
 const TAILWIND_CSS: Asset = asset!("/assets/tailwind.css");
 
 // ---------------------------------------------------------------------------
@@ -258,12 +257,14 @@ fn App() -> Element {
 
     rsx! {
         document::Link { rel: "icon", href: FAVICON }
-        document::Link { rel: "stylesheet", href: MAIN_CSS }
         document::Link { rel: "stylesheet", href: TAILWIND_CSS }
-        if token().is_some() {
-            Router::<Route> {}
-        } else {
-            Login {}
+        div {
+            class: "bg-[#0f1116] text-white min-h-screen font-sans",
+            if token().is_some() {
+                Router::<Route> {}
+            } else {
+                Login {}
+            }
         }
     }
 }
@@ -280,10 +281,11 @@ fn Login() -> Element {
 
     rsx! {
         div {
-            id: "login-page",
-            h1 { "MicroKit" }
-            p { class: "muted", "Sign in to continue." }
+            class: "flex flex-col items-center justify-center min-h-screen gap-4 text-center px-4",
+            h1 { class: "text-4xl font-bold mb-1", "MicroKit" }
+            p { class: "text-gray-500 text-sm", "Sign in to continue." }
             button {
+                class: "bg-[#91a4d2] text-[#0f1116] font-semibold px-7 py-2.5 rounded transition-colors hover:bg-[#b0c0e8] disabled:opacity-60 disabled:cursor-not-allowed",
                 disabled: logging_in(),
                 onclick: move |_| async move {
                     *logging_in.write() = true;
@@ -299,7 +301,7 @@ fn Login() -> Element {
                 if logging_in() { "Signing in..." } else { "Sign in" }
             }
             if let Some(e) = error() {
-                p { class: "error", "{e}" }
+                p { class: "text-red-400 text-sm", "{e}" }
             }
         }
     }
@@ -314,11 +316,15 @@ fn Navbar() -> Element {
     let mut token = use_context::<AuthToken>();
     rsx! {
         div {
-            id: "navbar",
-            Link { to: Route::Users {}, "Users" }
-            div { style: "flex: 1" }
+            class: "flex flex-row items-center px-5 py-3 border-b border-[#2a2d36] mb-6",
+            Link {
+                class: "text-white no-underline mr-5 hover:text-[#91a4d2] transition-colors",
+                to: Route::Users {},
+                "Users"
+            }
+            div { class: "flex-1" }
             button {
-                id: "signout-btn",
+                class: "border border-[#2a2d36] rounded text-[#9aa5c4] text-sm px-3 py-1 bg-transparent cursor-pointer transition-colors hover:border-[#91a4d2] hover:text-white",
                 onclick: move |_| *token.write() = None,
                 "Sign out"
             }
@@ -356,36 +362,38 @@ fn Users() -> Element {
 
     rsx! {
         div {
-            id: "users-page",
+            class: "max-w-4xl mx-auto px-5 py-4",
 
-            h1 { "Users" }
+            h1 { class: "text-3xl font-semibold mb-4", "Users" }
 
             div {
-                id: "users-list",
+                class: "mb-2",
                 {
                     let users_read = users.read();
                     match users_read.as_ref() {
-                        None => rsx! { p { class: "muted", "Loading..." } },
-                        Some(Err(e)) => rsx! { p { class: "error", "Failed to load users: {e}" } },
+                        None => rsx! { p { class: "text-gray-500 text-sm", "Loading..." } },
+                        Some(Err(e)) => rsx! { p { class: "text-red-400 text-sm", "Failed to load users: {e}" } },
                         Some(Ok(list)) => {
                             if list.is_empty() {
-                                rsx! { p { class: "muted", "No users yet." } }
+                                rsx! { p { class: "text-gray-500 text-sm", "No users yet." } }
                             } else {
                                 rsx! {
                                     table {
+                                        class: "w-full border-collapse text-sm",
                                         thead {
                                             tr {
-                                                th { "Name" }
-                                                th { "System" }
-                                                th { "Key" }
+                                                th { class: "text-left px-3 py-2 border-b border-[#2a2d36] text-[#91a4d2] font-semibold", "Name" }
+                                                th { class: "text-left px-3 py-2 border-b border-[#2a2d36] text-[#91a4d2] font-semibold", "System" }
+                                                th { class: "text-left px-3 py-2 border-b border-[#2a2d36] text-[#91a4d2] font-semibold", "Key" }
                                             }
                                         }
                                         tbody {
                                             for user in list.iter() {
                                                 tr {
-                                                    td { "{user.name}" }
-                                                    td { "{user.creation_system}" }
-                                                    td { class: "mono", "{user.creation_key}" }
+                                                    class: "group",
+                                                    td { class: "px-3 py-2 border-b border-[#1e2028] group-hover:bg-[#1a1d26]", "{user.name}" }
+                                                    td { class: "px-3 py-2 border-b border-[#1e2028] group-hover:bg-[#1a1d26]", "{user.creation_system}" }
+                                                    td { class: "px-3 py-2 border-b border-[#1e2028] font-mono text-[#9aa5c4] group-hover:bg-[#1a1d26]", "{user.creation_key}" }
                                                 }
                                             }
                                         }
@@ -398,17 +406,19 @@ fn Users() -> Element {
             }
 
             div {
-                id: "create-form",
-                h2 { "Create User" }
+                class: "mt-2",
+                h2 { class: "text-xl font-medium mt-8 mb-2", "Create User" }
                 div {
-                    class: "form-row",
+                    class: "flex gap-2.5 items-center flex-wrap mt-2.5",
                     input {
+                        class: "bg-[#1a1d26] border border-[#2a2d36] rounded text-white text-sm px-2.5 py-2 outline-none flex-1 min-w-40 focus:border-[#91a4d2]",
                         r#type: "text",
                         placeholder: "Name",
                         value: "{name}",
                         oninput: move |e| *name.write() = e.value(),
                     }
                     button {
+                        class: "bg-[#91a4d2] text-[#0f1116] font-semibold text-sm px-4 py-2 rounded whitespace-nowrap cursor-pointer transition-colors hover:bg-[#b0c0e8]",
                         onclick: move |_| async move {
                             *status.write() = None;
                             let bearer = token().unwrap_or_default();
@@ -436,7 +446,7 @@ fn Users() -> Element {
                     }
                 }
                 if let Some(s) = status() {
-                    p { class: "status", "{s}" }
+                    p { class: "text-green-300 text-sm mt-2", "{s}" }
                 }
             }
         }

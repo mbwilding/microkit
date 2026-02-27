@@ -13,3 +13,16 @@ apps:
     appProtocol: grpc
     logLevel: info
     command: ["dx", "serve", "--package", "website"]
+  - appID: tailwind
+    appDirPath: ./crates/website/
+    logLevel: info
+    command:
+      [
+        "tailwindcss",
+        "--input",
+        "./tailwind.css",
+        "--output",
+        "./assets/tailwind.css",
+        "--minify",
+        "--watch",
+      ]

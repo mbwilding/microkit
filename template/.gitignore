@@ -1,4 +1,4 @@
-/.dapr/
+**/.dapr/
 /.direnv/
 /target/
 Cargo.lock
