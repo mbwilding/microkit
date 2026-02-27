@@ -5,6 +5,9 @@ edition = "2024"
 publish = false
 
 [dependencies]
+# Internal
+api = { workspace = true }
+# External
 dioxus = { version = "0.7.1", features = ["router"] }
 
 [features]
