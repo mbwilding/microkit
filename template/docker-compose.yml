@@ -5,7 +5,7 @@ networks:
     driver: bridge
 
 volumes:
-  microkit_postgres:
+  postgres:
 
 services:
   postgres:
@@ -19,7 +19,7 @@ services:
     environment:
       - POSTGRES_PASSWORD=Developer01
     volumes:
-      - microkit_postgres:/var/lib/postgresql
+      - postgres:/var/lib/postgresql
 
   rabbitmq:
     image: masstransit/rabbitmq
