@@ -1,6 +1,5 @@
-flake.lock
-Cargo.lock
-/target/
+/.direnv/
 /.test/
-.direnv/
+/target/
+Cargo.lock
 flake.lock
