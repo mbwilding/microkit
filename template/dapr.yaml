@@ -8,3 +8,8 @@ apps:
     appProtocol: grpc
     logLevel: info
     command: ["cargo", "run", "--bin", "api"]
+  - appID: website
+    appDirPath: ./
+    appProtocol: grpc
+    logLevel: info
+    command: ["dx", "serve", "--package", "website"]
