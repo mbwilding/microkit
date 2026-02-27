@@ -12,7 +12,7 @@ apps:
     appDirPath: ./
     appProtocol: grpc
     logLevel: info
-    command: ["dx", "serve", "--package", "website"]
+    command: ["dx", "serve", "--package", "website", "@client"]
   - appID: tailwind
     appDirPath: ./crates/website/
     logLevel: info
