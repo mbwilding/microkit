@@ -13,9 +13,9 @@ use zip::ZipArchive;
 
 #[derive(Parser)]
 pub(crate) struct NewArgs {
-    /// Name of the service
+    /// Name of the service: MicroKit
     name: String,
-    /// Description of the service: Awesome Service
+    /// Description of the service: An example service
     #[arg(short, long)]
     description: Option<String>,
     /// Port offset, this will offset your ports so you can run multiple services at the same time

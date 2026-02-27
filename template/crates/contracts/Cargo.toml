@@ -2,7 +2,7 @@
 name = "contracts"
 version = "0.0.0"
 edition = "2024"
-description = "Event contracts for AwesomeService"
+description = "Event contracts"
 publish = true
 
 [dependencies]
