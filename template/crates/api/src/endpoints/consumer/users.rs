@@ -26,7 +26,7 @@ pub async fn consumer_create_user(
 ) -> Result<(), StatusCode> {
     if event.creation_system.is_empty() || event.creation_key.is_empty() {
         tracing::error!("Missing required creation tracking fields");
-        return Err(StatusCode::BAD_REQUEST);
+        return Err(StatusCode::UNPROCESSABLE_ENTITY);
     }
 
     tracing::info!(
@@ -38,7 +38,6 @@ pub async fn consumer_create_user(
     );
 
     let active_model = ActiveModel::from_event(event);
-
     let inserted = active_model.insert(&db).await.map_err(|e| {
         tracing::error!(error = %e, "Failed to insert user from event");
         if e.to_string().contains("duplicate key") {
