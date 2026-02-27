@@ -1,3 +1,4 @@
+flake.lock
 Cargo.lock
 config-private.yml
 /target/
