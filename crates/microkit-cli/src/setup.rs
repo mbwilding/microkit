@@ -12,6 +12,9 @@ pub fn exec() -> Result<()> {
     let _ = run_command("dapr", &["uninstall"]);
     run_command("dapr", &["init", "--slim"]).context("Failed to initialize dapr")?;
 
+    println!("Initializing dioxus");
+    run_command("cargo", &["install", "dioxus-cli"]).context("Failed to initialize dioxus")?;
+
     println!("Setup complete");
     Ok(())
 }
