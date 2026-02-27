@@ -69,14 +69,12 @@ auth:
   jwks_uri: https://cognito-idp.{region}.amazonaws.com/{userPoolId}/.well-known/jwks.json  # Required: JWKS endpoint
   audience: your-client-id  # Optional: Expected audience/client ID for token validation
   client_id: your-client-id  # Optional: Client ID for documentation
-  client_secret: your-secret  # Optional: Client secret (store in config-private.yml)
+  client_secret: your-secret  # Optional: Client secret for documentor
   scopes:  # Optional: Default scopes for documentation
     - openid
     - profile
     - email
 ```
-
-**Note:** For sensitive values like `client_secret`, create a separate `config-private.yml` file that is not committed to version control.
 
 ## Port Configuration
 

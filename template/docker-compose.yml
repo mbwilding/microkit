@@ -1,7 +1,7 @@
 name: microkit
 
 networks:
-  development:
+  microkit:
     driver: bridge
 
 volumes:
@@ -13,7 +13,7 @@ services:
     container_name: postgres
     restart: always
     networks:
-      - development
+      - microkit
     ports:
       - 5432:5432
     environment:
@@ -26,7 +26,7 @@ services:
     container_name: rabbitmq
     restart: always
     networks:
-      - development
+      - microkit
     ports:
       - 15672:15672 # UI
       - 5672:5672   # AMQP
@@ -38,7 +38,7 @@ services:
     container_name: aspire
     restart: always
     networks:
-      - development
+      - microkit
     ports:
       - "18888:18888" # UI
       - "4317:18889"  # OTLP gRPC
